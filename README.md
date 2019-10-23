@@ -5,7 +5,7 @@ Bademeister implementation in Golang.
 
 ## What is bademeister?
 
-Bademeister watches and records the bitcoind mempool.
+Bademeister records the mempool history of a Bitcoin Core node and provides access to the data over an API.
 
 It stores the time when a transaction was first received by a bitcoin node, including
 transactions that do not end up in the blockchain (double-spends).
