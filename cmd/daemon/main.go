@@ -8,6 +8,8 @@ import (
 func main() {
 	log.Println("Starting Bademeister Daemon")
 
-	d := daemon.NewBademeisterDaemon()
-	d.Start("127.0.0.1", "28332")
+	_, err := daemon.NewBademeisterDaemon("127.0.0.1", "28332")
+	if err != nil {
+		log.Fatal(err)
+	}
 }
