@@ -1,7 +1,7 @@
 package zmqsubscriber
 
 import (
-	"errors"
+	"github.com/0xb10c/bademeister-go/src/types"
 	"log"
 
 	"github.com/pebbe/zmq4"
@@ -11,63 +11,60 @@ type ZMQSubscriber struct {
 	Port    string
 	Host    string
 	Topics  []string
-	isSetup bool
 	socket  *zmq4.Socket
+	IncomingTx     chan types.Transaction
+	IncomingBlocks chan types.Block
 }
 
-func NewZMQSubscriber(host string, port string, topics []string) (zmqSub ZMQSubscriber) {
-	zmqSub = ZMQSubscriber{Host: host, Port: port, Topics: topics, isSetup: false}
-	return
+func parseTransaction(msg [][]byte) types.Transaction {
+	return types.Transaction{}
 }
 
-func (zmqSub *ZMQSubscriber) Setup() error {
-	if zmqSub.isSetup {
-		return errors.New("subscriber is already setup")
-	}
-
+func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 	socket, err := zmq4.NewSocket(zmq4.SUB)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for _, topic := range zmqSub.Topics {
+	topics := []string{"hashtx", "rawblock"}
+	for _, topic := range topics {
 		err := socket.SetSubscribe(topic)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	zmqSub.socket = socket
-	zmqSub.isSetup = true
-
-	return nil
-}
-
-func (zmqSub *ZMQSubscriber) Loop() {
-	if !zmqSub.isSetup {
-		log.Fatalln("Could not loop ZMQ subscriber since it's not set up.")
-		return
-	}
-
-	connectionString := "tcp://" + zmqSub.Host + ":" + zmqSub.Port
-	err := zmqSub.socket.Connect(connectionString)
+	connectionString := "tcp://" + host + ":" + port
+	err = socket.Connect(connectionString)
 	if err != nil {
-		log.Fatalf("Could not connect ZMQ subscriber to '%s': %s\n", connectionString, err)
+		log.Printf("Could not connect ZMQ subscriber to '%s': %s\n", connectionString, err)
+		return nil, err
 	}
 
-	defer func() {
-		err := zmqSub.socket.Close()
-		if err != nil {
-			log.Fatalf("Could not close ZMQ subscriber: %s\n", err)
+	incomingTx := make(chan types.Transaction)
+	incomingBlocks := make(chan types.Block)
+
+	go func () {
+		for {
+			msg, err := socket.RecvMessageBytes(0)
+			if err != nil {
+				log.Fatalf("Could not receive ZMQ message: %s\n", err)
+			}
+			log.Printf("%v", msg)
+			incomingTx <- parseTransaction(msg)
 		}
 	}()
 
-	for {
-		msg, err := zmqSub.socket.RecvMessage(0)
-		if err != nil {
-			log.Fatalf("Could not receive ZMQ message: %s\n", err)
-		}
-		// TODO: pass to message processing
-		log.Println(msg)
-	}
+	return &ZMQSubscriber{
+		Host:       host,
+		Port:       port,
+		Topics:     topics,
+		socket:     socket,
+		IncomingTx: incomingTx,
+		IncomingBlocks: incomingBlocks,
+	}, nil
+}
+
+func (z *ZMQSubscriber) Quit() error {
+	return z.socket.Close()
 }
