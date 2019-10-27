@@ -51,7 +51,7 @@ func (s *Storage) AddTransaction(tx *types.Transaction) error {
 }
 
 type Query struct {
-	FirstSeen *time.Duration
+	FirstSeen *time.Time
 }
 
 type TxIterator struct {
