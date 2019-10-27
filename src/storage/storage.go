@@ -20,8 +20,12 @@ func NewStorage(path string) (*Storage, error) {
 	_, err := os.Stat(path)
 	init := false
 
-	if err != nil && os.IsNotExist(err) {
-		init = true
+	if err != nil {
+		if os.IsNotExist(err) {
+			init = true
+		} else {
+			return nil, err
+		}
 	}
 
 	db, err := sql.Open("sqlite3", path)
