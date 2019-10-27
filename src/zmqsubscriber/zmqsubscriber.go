@@ -13,9 +13,9 @@ type ZMQSubscriber struct {
 	Port    string
 	Host    string
 	Topics  []string
-	socket  *zmq4.Socket
 	IncomingTx     chan types.Transaction
 	IncomingBlocks chan types.Block
+	socket  *zmq4.Socket
 }
 
 func parseTransaction(firstSeen time.Time, msg [][]byte) types.Transaction {
@@ -65,11 +65,23 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 	incomingTx := make(chan types.Transaction)
 	incomingBlocks := make(chan types.Block)
 
+	zmqSub := &ZMQSubscriber{
+		Host:       host,
+		Port:       port,
+		Topics:     topics,
+		socket:     socket,
+		IncomingTx: incomingTx,
+		IncomingBlocks: incomingBlocks,
+	}
+
 	go func () {
 		for {
 			log.Printf("waiting for msg")
+			// FIXME(#11): sometimes we panic when socket.Close() is called
+			// maybe we should Recv with a timeout and quit after reading
 			msg, err := socket.RecvMessageBytes(0)
 			if err != nil {
+				fmt.Printf("%#v\n", err)
 				panic(fmt.Errorf("Could not receive ZMQ message: %s", err))
 			}
 			// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
@@ -87,16 +99,14 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 		}
 	}()
 
-	return &ZMQSubscriber{
-		Host:       host,
-		Port:       port,
-		Topics:     topics,
-		socket:     socket,
-		IncomingTx: incomingTx,
-		IncomingBlocks: incomingBlocks,
-	}, nil
+	return zmqSub, nil
 }
 
 func (z *ZMQSubscriber) Quit() error {
-	return z.socket.Close()
+	log.Printf("closing socket...")
+	err := z.socket.Close()
+	if err != nil {
+		z.socket = nil
+	}
+	return err
 }
