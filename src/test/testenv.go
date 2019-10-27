@@ -1,7 +1,10 @@
 package test
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
+	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
@@ -166,3 +169,13 @@ func (e *TestEnv) Quit() {
 	panic(err)
 }
 
+func NewTestTxId(seed *[]byte) types.Hash32 {
+	if seed != nil {
+		return sha256.Sum256(*seed)
+	}
+	var res types.Hash32
+	if _, err := rand.Read(res[:]); err != nil {
+		panic(err)
+	}
+	return res
+}

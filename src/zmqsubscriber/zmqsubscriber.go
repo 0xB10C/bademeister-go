@@ -85,7 +85,7 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 				panic(fmt.Errorf("Could not receive ZMQ message: %s", err))
 			}
 			// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
-			t := time.Now()
+			t := time.Now().UTC()
 			topic, payload := string(msg[0]), msg[1:]
 			log.Printf("%s: %d parts", topic, len(payload))
 			switch topic {

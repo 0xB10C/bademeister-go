@@ -2,15 +2,17 @@ package storage
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/0xb10c/bademeister-go/src/types"
 	_ "github.com/mattn/go-sqlite3"
-	"log"
+	"time"
 )
 
 type Storage struct {
 	db *sql.DB
 }
 
+// reference: https://github.com/mattn/go-sqlite3/blob/master/_example/simple/simple.go
 func NewStorage(path string, version int) (*Storage, error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -27,43 +29,74 @@ func NewStorage(path string, version int) (*Storage, error) {
 }
 
 func (s *Storage) init() error {
+	// TODO add other values
 	sqlStmt := `
-	create table txs (
+	create table transactions (
 		txid blob,
-		confirmed_block_height integer,
-		confirmed_block_index integer,
-		first_seen date
+		first_seen date,
+		confirmed_block_height integer
 	);`
 	_, err := s.db.Exec(sqlStmt)
 	return err
 }
 
-func (s *Storage) AddTransaction(tx types.Transaction) error {
-	dbtx, err := s.db.Begin()
+func (s *Storage) AddTransaction(tx *types.Transaction) error {
+	if tx.FirstSeen.Location() != time.UTC {
+		return fmt.Errorf("time must be UTC")
+	}
+	_, err := s.db.Exec(`
+		insert into transactions (txid, first_seen) values(?, ?)
+	`, tx.TxID[:], tx.FirstSeen)
+	return err
+}
+
+type Query struct {
+	FirstSeen *time.Duration
+}
+
+type TxIterator struct {
+	rows *sql.Rows
+}
+
+func (i *TxIterator) Next() *types.Transaction {
+	if !i.rows.Next() {
+		return nil
+	}
+	var txidBytes []byte
+	var firstSeen time.Time
+	if err := i.rows.Scan(&txidBytes, &firstSeen); err != nil {
+		panic(err)
+	}
+	var txid types.Hash32
+	copy(txid[:], txidBytes)
+	return &types.Transaction{
+		TxID: txid,
+		FirstSeen: firstSeen.UTC(),
+	}
+}
+
+func (i *TxIterator) Close() error {
+	return i.rows.Close()
+}
+
+func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
+	var rows *sql.Rows
+	var err error
+
+	baseQuery := `select txid, first_seen from transactions`;
+
+	if q.FirstSeen == nil {
+		rows, err = s.db.Query(baseQuery)
+	} else {
+		rows, err = s.db.Query(
+			fmt.Sprintf("%s where first_seen > ?", baseQuery),
+			q.FirstSeen,
+		)
+	}
+
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	stmt, err := dbtx.Prepare(`
-		insert into txs (txid, first_seem) values(?, ?)
-	`)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := stmt.Close(); err != nil {
-			log.Printf("error in smt.Close()=%v", err)
-		}
-	}()
-
-	if _, err = stmt.Exec(tx.TxID, tx.FirstSeen); err != nil {
-		return err
-	}
-
-	if err := dbtx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return &TxIterator{rows}, nil
 }

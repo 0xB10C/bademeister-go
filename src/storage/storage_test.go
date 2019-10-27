@@ -3,9 +3,12 @@ package storage
 import (
 	"fmt"
 	"github.com/0xb10c/bademeister-go/src/test"
+	"github.com/0xb10c/bademeister-go/src/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestStorage(t *testing.T) {
@@ -19,5 +22,19 @@ func TestStorage(t *testing.T) {
 
 	st, err := NewStorage(path, 1)
 	require.NoError(t, err)
-	_ = st
+
+	tx := types.Transaction{
+		TxID: test.NewTestTxId(nil),
+		FirstSeen: time.Now().UTC(),
+	}
+
+	err = st.AddTransaction(&tx)
+	require.NoError(t, err)
+
+	txIter, err := st.QueryTransactions(Query{})
+	require.NoError(t, err)
+
+	recoverTx := txIter.Next()
+	require.NotNil(t, tx)
+	assert.Equal(t, tx, *recoverTx)
 }
