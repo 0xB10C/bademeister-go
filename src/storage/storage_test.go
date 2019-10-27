@@ -23,18 +23,51 @@ func TestStorage(t *testing.T) {
 	st, err := NewStorage(path, 1)
 	require.NoError(t, err)
 
-	tx := types.Transaction{
-		TxID: test.NewTestTxId(nil),
-		FirstSeen: time.Now().UTC(),
+	tm := time.Now().UTC()
+
+	txs := []types.Transaction{
+		{
+			TxID:      test.NewTestTxId(nil),
+			FirstSeen: tm,
+		},
+		{
+			TxID:      test.NewTestTxId(nil),
+			FirstSeen: tm.Add(10 * time.Second),
+		},
 	}
 
-	err = st.AddTransaction(&tx)
-	require.NoError(t, err)
+	for _, tx := range txs {
+		err = st.AddTransaction(&tx)
+		require.NoError(t, err)
+	}
 
-	txIter, err := st.QueryTransactions(Query{})
-	require.NoError(t, err)
+	// test query all txs
+	{
+		txIter, err := st.QueryTransactions(Query{})
+		require.NoError(t, err)
 
-	recoverTx := txIter.Next()
-	require.NotNil(t, tx)
-	assert.Equal(t, tx, *recoverTx)
+		recoverTx := txIter.Next()
+		require.NotNil(t, recoverTx)
+		assert.Equal(t, txs[0], *recoverTx)
+
+		recoverTx = txIter.Next()
+		require.NotNil(t, recoverTx)
+		assert.Equal(t, txs[1], *recoverTx)
+
+		assert.Nil(t, txIter.Next())
+	}
+
+	// test query with FirstSeen
+	{
+		txIter, err := st.QueryTransactions(Query{
+			FirstSeen: &tm,
+		})
+		require.NoError(t, err)
+
+		recoverTx := txIter.Next()
+		require.NotNil(t, recoverTx)
+		assert.Equal(t, txs[1], *recoverTx)
+
+		assert.Nil(t, txIter.Next())
+	}
 }
