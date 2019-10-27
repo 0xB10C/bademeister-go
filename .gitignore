@@ -2,3 +2,4 @@ bademeister-api
 bademeisterd
 .idea
 *.iml
+*.db
