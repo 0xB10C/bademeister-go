@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const dataDir = "/tmp/test-bademeister-go"
+const DataDir = "/tmp/test-bademeister-go"
 const zmqHost = "127.0.0.1"
 const zmqPort = "28334"
 const rpcPort = 18333
@@ -31,7 +31,7 @@ func newBitcoindRpc() (*rpcclient.Client, error) {
 	var err error
 	// wait 1s for cookie file to appear
 	for i := 0; i < 10; i++ {
-		cookie, err = ioutil.ReadFile(fmt.Sprintf("%s/regtest/.cookie", dataDir))
+		cookie, err = ioutil.ReadFile(fmt.Sprintf("%s/regtest/.cookie", DataDir))
 		if err == nil {
 			break
 		}
@@ -81,12 +81,12 @@ func newBitcoindRpc() (*rpcclient.Client, error) {
 }
 
 func NewTestEnv() TestEnv {
-	err := os.RemoveAll(dataDir)
+	err := os.RemoveAll(DataDir)
 	if err != nil && !os.IsNotExist(err) {
 		panic(err)
 	}
 
-	err = os.MkdirAll(dataDir, os.ModePerm)
+	err = os.MkdirAll(DataDir, os.ModePerm)
 	if err != nil {
 		panic(err)
 	}
@@ -94,7 +94,7 @@ func NewTestEnv() TestEnv {
 	zmqUrl := fmt.Sprintf("tcp://%s:%s", zmqHost, zmqPort)
 	args := []string{
 		"-regtest=1",
-		fmt.Sprintf("-datadir=%s", dataDir),
+		fmt.Sprintf("-datadir=%s", DataDir),
 		"-rpcallowip=127.0.0.1",
 		fmt.Sprintf("-rpcbind=127.0.0.1:%d", rpcPort),
 		fmt.Sprintf("-zmqpubrawtx=%s", zmqUrl),
