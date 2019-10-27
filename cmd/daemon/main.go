@@ -1,9 +1,9 @@
 package main
 
 import (
+	"flag"
 	"github.com/0xb10c/bademeister-go/src/daemon"
 	"log"
-	"flag"
 	"os"
 	"os/signal"
 )
@@ -30,12 +30,18 @@ func main() {
 		d.Stop()
 	}()
 
-	if err := d.Run(); err != nil {
-		log.Printf("Error %v, shutting down", err)
+	errRun := d.Run();
+	if errRun != nil {
+		log.Printf("Error during operation, shutting down: %s", err)
 	}
 
-	if err := d.Close(); err != nil {
-		log.Fatalln("Error during shutdown")
+	errClose := d.Close()
+	if errClose != nil {
+		log.Printf("Error during shutdown: %s", err)
+	}
+
+	if errRun != nil || errClose != nil {
+		os.Exit(1)
 	}
 
 	os.Exit(0)
