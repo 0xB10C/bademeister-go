@@ -4,7 +4,6 @@ import (
 	"github.com/0xb10c/bademeister-go/src/test"
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/assert"
-	"log"
 	"testing"
 )
 
@@ -27,7 +26,6 @@ func TestZMQSubscriber(t *testing.T) {
 	txs := []types.Transaction{}
 	go func() {
 		for t := range z.IncomingTx {
-			log.Printf("got tx %d", len(txs))
 			txs = append(txs, t)
 		}
 	}()
@@ -35,7 +33,6 @@ func TestZMQSubscriber(t *testing.T) {
 	blocks := []types.Block{}
 	go func() {
 		for b := range z.IncomingBlocks {
-			log.Printf("got block %d", len(blocks))
 			blocks = append(blocks, b)
 		}
 	}()

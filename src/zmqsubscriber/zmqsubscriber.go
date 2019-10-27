@@ -62,6 +62,8 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 		return nil, err
 	}
 
+	log.Printf("[ZMQ] successfully connected to %s", connectionString)
+
 	incomingTx := make(chan types.Transaction)
 	incomingBlocks := make(chan types.Block)
 
@@ -76,7 +78,7 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 
 	go func () {
 		for {
-			log.Printf("waiting for msg")
+			log.Printf("[ZMQ] waiting for msg...")
 			// FIXME(#11): sometimes we panic when socket.Close() is called
 			// maybe we should Recv with a timeout and quit after reading
 			msg, err := socket.RecvMessageBytes(0)
@@ -87,7 +89,7 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 			// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
 			t := time.Now().UTC()
 			topic, payload := string(msg[0]), msg[1:]
-			log.Printf("%s: %d parts", topic, len(payload))
+			log.Printf(`[ZMQ] received topic "%s"`, topic)
 			switch topic {
 			case TOPIC_HASHTX:
 				incomingTx <- parseTransaction(t, payload)
@@ -103,7 +105,7 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 }
 
 func (z *ZMQSubscriber) Quit() error {
-	log.Printf("closing socket...")
+	log.Printf("[ZMQ] closing socket...")
 	err := z.socket.Close()
 	if err != nil {
 		z.socket = nil
