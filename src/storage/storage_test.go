@@ -81,4 +81,25 @@ func TestStorage(t *testing.T) {
 	require.NoError(t, err)
 	defer st.Close()
 	testQueryTransactions(t, st, tm, txs)
+
+	// repeated insertion with same txid upserts iff FirstSeen is lower
+	{
+		err = st.AddTransaction(&txs[0])
+		require.NoError(t, err)
+		testQueryTransactions(t, st, tm, txs)
+
+		txLater := txs[0]
+		txLater.FirstSeen = txLater.FirstSeen.Add(10 * time.Second)
+		err = st.AddTransaction(&txLater)
+		require.NoError(t, err)
+		testQueryTransactions(t, st, tm, txs)
+	}
+
+	{
+		txEarlier := txs[0]
+		txEarlier.FirstSeen = txEarlier.FirstSeen.Add(-10 * time.Second)
+		err = st.AddTransaction(&txEarlier)
+		require.NoError(t, err)
+		testQueryTransactions(t, st, tm, []types.Transaction{txEarlier, txs[1]})
+	}
 }
