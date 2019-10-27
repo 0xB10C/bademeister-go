@@ -18,8 +18,7 @@ func NewBademeisterDaemon(host, port, dbPath string) (*BademeisterDaemon, error)
 		return nil, fmt.Errorf("Could not setup ZMQ subscriber: %s", err)
 	}
 
-	dbVersion := 0
-	store, err := storage.NewStorage(dbPath, dbVersion)
+	store, err := storage.NewStorage(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not initialize storage: %s", err)
 	}
