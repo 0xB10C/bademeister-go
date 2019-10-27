@@ -5,15 +5,25 @@ import (
 	"fmt"
 	"github.com/0xb10c/bademeister-go/src/types"
 	_ "github.com/mattn/go-sqlite3"
+	"os"
 	"time"
 )
+
+const VERSION = 1
 
 type Storage struct {
 	db *sql.DB
 }
 
 // reference: https://github.com/mattn/go-sqlite3/blob/master/_example/simple/simple.go
-func NewStorage(path string, version int) (*Storage, error) {
+func NewStorage(path string) (*Storage, error) {
+	_, err := os.Stat(path)
+	init := false
+
+	if err != nil && os.IsNotExist(err) {
+		init = true
+	}
+
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
@@ -21,23 +31,60 @@ func NewStorage(path string, version int) (*Storage, error) {
 
 	s := Storage{db}
 
-	if err := s.init(); err != nil {
-		return nil, err
+	if init {
+		if err := s.init(VERSION); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := s.migrate(s.getVersion()); err != nil {
+			return nil, err
+		}
 	}
 
 	return &s, nil
 }
 
-func (s *Storage) init() error {
-	// TODO add other values
-	sqlStmt := `
-	create table transactions (
-		txid blob,
-		first_seen date,
-		confirmed_block_height integer
-	);`
-	_, err := s.db.Exec(sqlStmt)
+func (s *Storage) init(version int) error {
+	sqlStmts := []string{
+		`create table config (version int);`,
+		`create table transactions (
+			txid blob unique,
+			first_seen date,
+			confirmed_block_height integer
+		);`,
+	}
+	for _, stmt := range sqlStmts {
+		if _, err := s.db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+
+	_, err := s.db.Exec(
+		`insert into config (version) values (?);`, version,
+	);
 	return err
+}
+
+func (s *Storage) getVersion() (version int) {
+	row := s.db.QueryRow(`select version from config`);
+	if row == nil {
+		panic(fmt.Errorf("could not query version"))
+	}
+	if err := row.Scan(&version); err != nil {
+		panic(err)
+	}
+	return
+}
+
+func (s *Storage) migrate(fromVersion int) error {
+	if fromVersion == VERSION {
+		// nothing to do
+		return nil
+	}
+
+	// TODO: implement
+
+	return fmt.Errorf("cannot migrate from version %d", fromVersion)
 }
 
 func (s *Storage) AddTransaction(tx *types.Transaction) error {
@@ -99,4 +146,8 @@ func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	}
 
 	return &TxIterator{rows}, nil
+}
+
+func (s *Storage) Close() error {
+	return s.db.Close()
 }
