@@ -91,8 +91,15 @@ func (s *Storage) AddTransaction(tx *types.Transaction) error {
 	if tx.FirstSeen.Location() != time.UTC {
 		return fmt.Errorf("time must be UTC")
 	}
+
+	// We cannot expect FirstSeen to be monotonic since we might add a tx data
+	// from multiple sources (`getrawmempool`).
+	// https://www.sqlite.org/lang_UPSERT.html
 	_, err := s.db.Exec(`
 		insert into transactions (txid, first_seen) values(?, ?)
+			on conflict(txid) do update set 
+			first_seen = excluded.first_seen
+			where first_seen > excluded.first_seen
 	`, tx.TxID[:], tx.FirstSeen)
 	return err
 }
