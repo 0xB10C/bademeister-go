@@ -5,6 +5,7 @@ import (
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"log"
 	"testing"
 )
 
@@ -33,8 +34,9 @@ func getTestZMQSubscriber(t *testing.T, env test.TestEnv) *ZMQSubscriber {
 	require.NoError(t, err)
 
 	go func() {
-		err := z.Run()
-		require.NoError(t, err)
+		if err := z.Run(); err != nil {
+			log.Fatalf("ZMQSubscriber exited with error: %s", err)
+		}
 	}()
 
 	return z
