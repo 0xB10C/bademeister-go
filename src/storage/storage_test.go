@@ -102,4 +102,6 @@ func TestStorage(t *testing.T) {
 		require.NoError(t, err)
 		testQueryTransactions(t, st, tm, []types.Transaction{txEarlier, txs[1]})
 	}
+
+	assert.Equal(t, 2, st.TxCount())
 }
