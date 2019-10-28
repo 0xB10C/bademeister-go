@@ -1,42 +1,48 @@
 package main
 
 import (
+	"flag"
+	"github.com/0xb10c/bademeister-go/src/daemon"
 	"log"
-
-	"github.com/0xb10c/bademeister-go/src/types"
-	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
+	"os"
+	"os/signal"
 )
 
-type BademeisterDaemon struct {
-	zmqSub         zmqsubscriber.ZMQSubscriber
-	incomingTx     chan types.Transaction
-	incomingBlocks chan types.Block
-}
+var zmqHost = flag.String("zmq-host", "127.0.0.1", "zmq host")
+var zmqPort = flag.String("zmq-port", "28332", "zmq port")
+var dbPath = flag.String("db", "transactions.db", "path to transactions database")
 
 func main() {
-	d := NewBademeisterDaemon()
-	d.Start()
-}
+	flag.Parse()
 
-// NewBademeisterDaemon initiates a new BademeisterDaemon.
-func NewBademeisterDaemon() (d *BademeisterDaemon) {
-	txChan := make(chan types.Transaction)
-	blockChan := make(chan types.Block)
-
-	d.incomingTx = txChan
-	d.incomingBlocks = blockChan
-	return d
-}
-
-// Start starts the BademeisterDaemon
-func (daemon *BademeisterDaemon) Start() {
 	log.Println("Starting Bademeister Daemon")
 
-	// TODO: parameterize host and port
-	daemon.zmqSub = zmqsubscriber.NewZMQSubscriber("127.0.0.1", "28332", []string{"rawtx", "rawblock"})
-	err := daemon.zmqSub.Setup()
+	d, err := daemon.NewBademeisterDaemon(*zmqHost, *zmqPort, *dbPath)
 	if err != nil {
-		log.Fatalf("Could not setup ZMQ subscriber: %s", err)
+		log.Fatal(err)
 	}
-	daemon.zmqSub.Loop()
+
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		s := <- c
+		log.Printf("Received signal %s, shutting down", s)
+		d.Stop()
+	}()
+
+	errRun := d.Run();
+	if errRun != nil {
+		log.Printf("Error during operation, shutting down: %s", err)
+	}
+
+	errClose := d.Close()
+	if errClose != nil {
+		log.Printf("Error during shutdown: %s", err)
+	}
+
+	if errRun != nil || errClose != nil {
+		os.Exit(1)
+	}
+
+	os.Exit(0)
 }
