@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/0xb10c/bademeister-go/src/types"
 	"log"
+	"syscall"
 	"time"
 
 	"github.com/pebbe/zmq4"
@@ -16,6 +17,7 @@ type ZMQSubscriber struct {
 	IncomingTx     chan types.Transaction
 	IncomingBlocks chan types.Block
 	socket  *zmq4.Socket
+	cancel  bool
 }
 
 func parseTransaction(firstSeen time.Time, msg [][]byte) types.Transaction {
@@ -67,48 +69,59 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 	incomingTx := make(chan types.Transaction)
 	incomingBlocks := make(chan types.Block)
 
-	zmqSub := &ZMQSubscriber{
-		Host:       host,
-		Port:       port,
-		Topics:     topics,
-		socket:     socket,
-		IncomingTx: incomingTx,
+	return &ZMQSubscriber{
+		Host:           host,
+		Port:           port,
+		Topics:         topics,
+		IncomingTx:     incomingTx,
 		IncomingBlocks: incomingBlocks,
-	}
+		socket:         socket,
+		cancel:         false,
+	}, nil
+}
 
-	go func () {
-		for {
-			log.Printf("[ZMQ] waiting for msg...")
-			// FIXME(#11): sometimes we panic when socket.Close() is called
-			// maybe we should Recv with a timeout and quit after reading
-			msg, err := socket.RecvMessageBytes(0)
-			if err != nil {
-				fmt.Printf("%#v\n", err)
-				panic(fmt.Errorf("Could not receive ZMQ message: %s", err))
-			}
-			// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
-			t := time.Now().UTC()
-			topic, payload := string(msg[0]), msg[1:]
-			log.Printf(`[ZMQ] received topic "%s"`, topic)
-			switch topic {
-			case TOPIC_HASHTX:
-				incomingTx <- parseTransaction(t, payload)
-			case TOPIC_RAWBLOCK:
-				incomingBlocks <- parseBlock(t, payload)
-			default:
-				panic(fmt.Sprintf("unknown topic %v", topic))
-			}
+func (z *ZMQSubscriber) Run() error {
+	defer func () {
+		if err := z.socket.Close(); err != nil {
+			log.Printf("[ZMQ] socket closed with error %q (ignored)", err)
 		}
 	}()
 
-	return zmqSub, nil
+	// FIXME(#11):  Workaround for bug where zmq crashes when Close() is called from a different
+	// 				goroutine. Instead of permanently blocking on Recv(), we set a timeout and check
+	// 				for `z.cancel`.
+	for !z.cancel {
+		if err := z.socket.SetRcvtimeo(time.Second); err != nil {
+			return fmt.Errorf("error setting timeout: %s", err)
+		}
+
+		msg, err := z.socket.RecvMessageBytes(0)
+		if err != nil {
+			if err == zmq4.ETIMEDOUT || err == zmq4.Errno(syscall.EAGAIN) {
+				continue
+			}
+
+			return fmt.Errorf("Could not receive ZMQ message: %s %v", err, err)
+		}
+
+		// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
+		t := time.Now().UTC()
+
+		topic, payload := string(msg[0]), msg[1:]
+		log.Printf(`[ZMQ] received topic "%s"`, topic)
+		switch topic {
+		case TOPIC_HASHTX:
+			z.IncomingTx <- parseTransaction(t, payload)
+		case TOPIC_RAWBLOCK:
+			z.IncomingBlocks <- parseBlock(t, payload)
+		default:
+			return fmt.Errorf("unknown topic %s", topic)
+		}
+	}
+
+	return nil
 }
 
-func (z *ZMQSubscriber) Quit() error {
-	log.Printf("[ZMQ] closing socket...")
-	err := z.socket.Close()
-	if err != nil {
-		z.socket = nil
-	}
-	return err
+func (z *ZMQSubscriber) Stop() {
+	z.cancel = true
 }

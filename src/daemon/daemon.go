@@ -42,11 +42,17 @@ func (b *BademeisterDaemon) processBlock(block *types.Block) error {
 }
 
 func (b *BademeisterDaemon) Run() error {
+	var zmqSubErr error
+	go func () {
+		zmqSubErr = b.zmqSub.Run()
+		b.Stop()
+	}()
+
 	for {
 		select {
 		case <-b.quit:
 			log.Printf("Received quit signal")
-			return nil
+			return zmqSubErr
 		case tx := <- b.zmqSub.IncomingTx:
 			if err := b.processTransaction(&tx); err != nil {
 				log.Printf("Error in processTransaction()")
@@ -67,11 +73,6 @@ func (b *BademeisterDaemon) Stop() {
 
 func (b *BademeisterDaemon) Close() error {
 	errors := false
-	errZmq := b.zmqSub.Quit()
-	if errZmq != nil {
-		log.Printf("error stopping zmq: %v", errZmq)
-		errors = true
-	}
 
 	errStorage := b.storage.Close()
 	if errStorage != nil {
