@@ -80,6 +80,17 @@ func (s *Storage) getVersion() (version int) {
 	return
 }
 
+func (s *Storage) TxCount() (count int) {
+	row := s.db.QueryRow(`select count(*) from transactions`)
+	if row == nil {
+		panic(fmt.Errorf("could not query tx count"))
+	}
+	if err := row.Scan(&count); err != nil {
+		panic(err)
+	}
+	return
+}
+
 func (s *Storage) migrate(fromVersion int) error {
 	if fromVersion == VERSION {
 		// nothing to do

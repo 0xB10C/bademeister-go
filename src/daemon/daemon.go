@@ -41,6 +41,10 @@ func (b *BademeisterDaemon) processBlock(block *types.Block) error {
 	return nil
 }
 
+func (b *BademeisterDaemon) dumpStats() {
+	log.Printf("TxCount()=%d", b.storage.TxCount())
+}
+
 func (b *BademeisterDaemon) Run() error {
 	var zmqSubErr error
 	go func () {
@@ -64,6 +68,8 @@ func (b *BademeisterDaemon) Run() error {
 				return err
 			}
 		}
+
+		b.dumpStats()
 	}
 }
 
