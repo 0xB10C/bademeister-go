@@ -3,13 +3,14 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	"github.com/0xb10c/bademeister-go/src/types"
-	_ "github.com/mattn/go-sqlite3"
 	"os"
 	"time"
+
+	"github.com/0xb10c/bademeister-go/src/types"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-const VERSION = 1
+const VERSION = 2
 
 type Storage struct {
 	db *sql.DB
@@ -50,12 +51,12 @@ func NewStorage(path string) (*Storage, error) {
 
 func (s *Storage) init(version int) error {
 	sqlStmts := []string{
-		`create table config (version int);`,
-		`create table transactions (
-			txid blob unique,
-			first_seen date,
-			confirmed_block_height integer
-		);`,
+		`CREATE TABLE config (version int)`,
+		`CREATE TABLE transactions (
+			txid BLOB UNIQUE NULL,
+			first_seen INT,
+			confirmed_block_height INT,
+		)`,
 	}
 	for _, stmt := range sqlStmts {
 		if _, err := s.db.Exec(stmt); err != nil {
@@ -64,13 +65,13 @@ func (s *Storage) init(version int) error {
 	}
 
 	_, err := s.db.Exec(
-		`insert into config (version) values (?);`, version,
-	);
+		`INSERT INTO config (version) VALUES (?);`, version,
+	)
 	return err
 }
 
 func (s *Storage) getVersion() (version int) {
-	row := s.db.QueryRow(`select version from config`);
+	row := s.db.QueryRow(`SELECT version FROM config`)
 	if row == nil {
 		panic(fmt.Errorf("could not query version"))
 	}
@@ -103,19 +104,17 @@ func (s *Storage) migrate(fromVersion int) error {
 }
 
 func (s *Storage) AddTransaction(tx *types.Transaction) error {
-	if tx.FirstSeen.Location() != time.UTC {
-		return fmt.Errorf("time must be UTC")
-	}
-
 	// We cannot expect FirstSeen to be monotonic since we might add a tx data
 	// from multiple sources (`getrawmempool`).
 	// https://www.sqlite.org/lang_UPSERT.html
 	_, err := s.db.Exec(`
-		insert into transactions (txid, first_seen) values(?, ?)
-			on conflict(txid) do update set 
-			first_seen = excluded.first_seen
-			where first_seen > excluded.first_seen
-	`, tx.TxID[:], tx.FirstSeen)
+		INSERT INTO transactions (txid, first_seen) VALUES(?, ?)
+		ON CONFLICT(txid) DO
+			UPDATE SET
+				first_seen = excluded.first_seen
+			WHERE
+				first_seen > excluded.first_seen
+	`, tx.TxID[:], tx.FirstSeen.UTC().Unix())
 	return err
 }
 
@@ -139,7 +138,7 @@ func (i *TxIterator) Next() *types.Transaction {
 	var txid types.Hash32
 	copy(txid[:], txidBytes)
 	return &types.Transaction{
-		TxID: txid,
+		TxID:      txid,
 		FirstSeen: firstSeen.UTC(),
 	}
 }
@@ -152,7 +151,7 @@ func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	var rows *sql.Rows
 	var err error
 
-	baseQuery := `select txid, first_seen from transactions`;
+	baseQuery := `SELECT txid, first_seen FROM transactions`
 
 	if q.FirstSeen == nil {
 		rows, err = s.db.Query(baseQuery)
