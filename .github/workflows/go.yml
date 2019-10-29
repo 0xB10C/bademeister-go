@@ -8,7 +8,7 @@ jobs:
     steps:
     
     - name: Install package dependencies 
-      run: apt install libzmq3-dev sqlite3
+      run: sudo apt install -y libzmq3-dev sqlite3 
     
     - name: Set up Go 1.13
       uses: actions/setup-go@v1
