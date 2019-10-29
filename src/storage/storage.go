@@ -55,7 +55,7 @@ func (s *Storage) init(version int) error {
 		`CREATE TABLE transactions (
 			txid BLOB UNIQUE NULL,
 			first_seen INT,
-			confirmed_block_height INT,
+			confirmed_block_height INT
 		)`,
 	}
 	for _, stmt := range sqlStmts {
@@ -131,7 +131,7 @@ func (i *TxIterator) Next() *types.Transaction {
 		return nil
 	}
 	var txidBytes []byte
-	var firstSeen time.Time
+	var firstSeen int64
 	if err := i.rows.Scan(&txidBytes, &firstSeen); err != nil {
 		panic(err)
 	}
@@ -139,7 +139,7 @@ func (i *TxIterator) Next() *types.Transaction {
 	copy(txid[:], txidBytes)
 	return &types.Transaction{
 		TxID:      txid,
-		FirstSeen: firstSeen.UTC(),
+		FirstSeen: time.Unix(firstSeen, 0).UTC(),
 	}
 }
 
@@ -158,7 +158,7 @@ func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	} else {
 		rows, err = s.db.Query(
 			fmt.Sprintf("%s where first_seen > ?", baseQuery),
-			q.FirstSeen,
+			q.FirstSeen.Unix(),
 		)
 	}
 

@@ -2,13 +2,14 @@ package storage
 
 import (
 	"fmt"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/0xb10c/bademeister-go/src/test"
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
-	"testing"
-	"time"
 )
 
 func testQueryTransactions(t *testing.T, st *Storage, firstSeen time.Time, txs []types.Transaction) {
@@ -55,8 +56,12 @@ func TestStorage(t *testing.T) {
 	// create from empty file
 	st, err := NewStorage(path)
 	require.NoError(t, err)
-	tm := time.Now().UTC()
 
+	// The nanoseconds are truncated, because the precision is lost
+	// when writing the firstSeen unix timestamp to database.
+	// Not truncating would result in unequal transactions when
+	// comparing with assert.Equal().
+	tm := time.Now().UTC().Truncate(time.Second)
 	txs := []types.Transaction{
 		{
 			TxID:      test.NewTestTxId(nil),
