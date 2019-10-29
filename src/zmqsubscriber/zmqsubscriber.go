@@ -20,7 +20,7 @@ type ZMQSubscriber struct {
 	cancel  bool
 }
 
-func parseTransaction(firstSeen time.Time, msg [][]byte) types.Transaction {
+func parseTransaction(firstSeen time.Time, msg [][]byte) (*types.Transaction, error) {
 	if len(msg) != 2 {
 		panic(fmt.Sprintf("unknown message format: len(msg)=%d", len(msg)))
 	}
@@ -29,15 +29,15 @@ func parseTransaction(firstSeen time.Time, msg [][]byte) types.Transaction {
 	var txid types.Hash32
 	copy(txid[:], txhash)
 	// TODO: provider other values
-	return types.Transaction{
+	return &types.Transaction{
 		FirstSeen: firstSeen,
 		TxID: txid,
-	}
+	}, nil
 }
 
-func parseBlock(firstSeen time.Time, msg [][]byte) types.Block {
+func parseBlock(firstSeen time.Time, msg [][]byte) (*types.Block, error) {
 	// TODO
-	return types.Block{}
+	return &types.Block{}, nil
 }
 
 const TOPIC_HASHTX = "hashtx"
@@ -80,6 +80,9 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 	}, nil
 }
 
+// Listen for new messages, parse messages into native data types and put them into channels
+// `IncomingTx` and `IncomingBlocks`.
+// Returns error if something goes wrong and `nil` if stopped using `Stop()`
 func (z *ZMQSubscriber) Run() error {
 	defer func () {
 		if err := z.socket.Close(); err != nil {
@@ -87,10 +90,19 @@ func (z *ZMQSubscriber) Run() error {
 		}
 	}()
 
+	parseErrors := make(chan error)
+
 	// FIXME(#11):  Workaround for bug where zmq crashes when Close() is called from a different
 	// 				goroutine. Instead of permanently blocking on Recv(), we set a timeout and check
 	// 				for `z.cancel`.
 	for !z.cancel {
+		// if a parse error happened, exit the loop
+		select {
+		case err := <-parseErrors:
+			return err
+		default:
+		}
+
 		if err := z.socket.SetRcvtimeo(time.Second); err != nil {
 			return fmt.Errorf("error setting timeout: %s", err)
 		}
@@ -109,14 +121,27 @@ func (z *ZMQSubscriber) Run() error {
 
 		topic, payload := string(msg[0]), msg[1:]
 		log.Printf(`[ZMQ] received topic "%s"`, topic)
-		switch topic {
-		case TOPIC_HASHTX:
-			z.IncomingTx <- parseTransaction(t, payload)
-		case TOPIC_RAWBLOCK:
-			z.IncomingBlocks <- parseBlock(t, payload)
-		default:
-			return fmt.Errorf("unknown topic %s", topic)
-		}
+
+
+		// process received messages asynchronously so that we do not stall the queue while parsing
+		go func() {
+			switch topic {
+			case TOPIC_HASHTX:
+				if tx, err := parseTransaction(t, payload); err == nil {
+					z.IncomingTx <- *tx
+				} else {
+					parseErrors <- err
+				}
+			case TOPIC_RAWBLOCK:
+				if block, err := parseBlock(t, payload); err == nil {
+					z.IncomingBlocks <- *block
+				} else {
+					parseErrors <- err
+				}
+			default:
+				parseErrors <- fmt.Errorf("unknown topic %s", topic)
+			}
+		}()
 	}
 
 	return nil
