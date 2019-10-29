@@ -55,7 +55,7 @@ func TestStorage(t *testing.T) {
 	// create from empty file
 	st, err := NewStorage(path)
 	require.NoError(t, err)
-	tm := time.Now().UTC()
+	tm := time.Now().UTC().Truncate(time.Second)
 
 	txs := []types.Transaction{
 		{

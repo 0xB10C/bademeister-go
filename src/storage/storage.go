@@ -55,7 +55,7 @@ func (s *Storage) init(version int) error {
 		`CREATE TABLE transactions (
 			txid BLOB UNIQUE NULL,
 			first_seen INT,
-			confirmed_block_height INT,
+			confirmed_block_height INT
 		)`,
 	}
 	for _, stmt := range sqlStmts {
@@ -82,7 +82,7 @@ func (s *Storage) getVersion() (version int) {
 }
 
 func (s *Storage) TxCount() (count int) {
-	row := s.db.QueryRow(`select count(*) from transactions`)
+	row := s.db.QueryRow(`SELECT COUNT(*) FROM transactions`)
 	if row == nil {
 		panic(fmt.Errorf("could not query tx count"))
 	}
@@ -131,15 +131,15 @@ func (i *TxIterator) Next() *types.Transaction {
 		return nil
 	}
 	var txidBytes []byte
-	var firstSeen time.Time
-	if err := i.rows.Scan(&txidBytes, &firstSeen); err != nil {
+	var firstSeenTimestamp int64
+	if err := i.rows.Scan(&txidBytes, &firstSeenTimestamp); err != nil {
 		panic(err)
 	}
 	var txid types.Hash32
 	copy(txid[:], txidBytes)
 	return &types.Transaction{
 		TxID:      txid,
-		FirstSeen: firstSeen.UTC(),
+		FirstSeen: time.Unix(firstSeenTimestamp, 0).UTC(),
 	}
 }
 
@@ -158,7 +158,7 @@ func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	} else {
 		rows, err = s.db.Query(
 			fmt.Sprintf("%s where first_seen > ?", baseQuery),
-			q.FirstSeen,
+			q.FirstSeen.Unix(),
 		)
 	}
 
