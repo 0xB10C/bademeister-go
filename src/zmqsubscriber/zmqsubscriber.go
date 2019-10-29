@@ -80,6 +80,30 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 	}, nil
 }
 
+func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
+	// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
+	t := time.Now().UTC()
+
+	switch topic {
+	case TOPIC_HASHTX:
+		tx, err := parseTransaction(t, payload);
+		if err != nil {
+			return err
+		}
+		z.IncomingTx <- *tx
+	case TOPIC_RAWBLOCK:
+		block, err := parseBlock(t, payload);
+		if err != nil {
+			return err
+		}
+		z.IncomingBlocks <- *block
+	default:
+		return fmt.Errorf("unknown topic %s", topic)
+	}
+
+	return nil
+}
+
 // Listen for new messages, parse messages into native data types and put them into channels
 // `IncomingTx` and `IncomingBlocks`.
 // Returns error if something goes wrong and `nil` if stopped using `Stop()`
@@ -116,30 +140,13 @@ func (z *ZMQSubscriber) Run() error {
 			return fmt.Errorf("Could not receive ZMQ message: %s %v", err, err)
 		}
 
-		// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
-		t := time.Now().UTC()
-
 		topic, payload := string(msg[0]), msg[1:]
 		log.Printf(`[ZMQ] received topic "%s"`, topic)
 
-
 		// process received messages asynchronously so that we do not stall the queue while parsing
 		go func() {
-			switch topic {
-			case TOPIC_HASHTX:
-				if tx, err := parseTransaction(t, payload); err == nil {
-					z.IncomingTx <- *tx
-				} else {
-					parseErrors <- err
-				}
-			case TOPIC_RAWBLOCK:
-				if block, err := parseBlock(t, payload); err == nil {
-					z.IncomingBlocks <- *block
-				} else {
-					parseErrors <- err
-				}
-			default:
-				parseErrors <- fmt.Errorf("unknown topic %s", topic)
+			if err := z.processMessage(topic, payload); err != nil {
+				parseErrors <- err
 			}
 		}()
 	}
