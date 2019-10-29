@@ -2,22 +2,23 @@ package zmqsubscriber
 
 import (
 	"fmt"
-	"github.com/0xb10c/bademeister-go/src/types"
 	"log"
 	"syscall"
 	"time"
+
+	"github.com/0xb10c/bademeister-go/src/types"
 
 	"github.com/pebbe/zmq4"
 )
 
 type ZMQSubscriber struct {
-	Port    string
-	Host    string
-	Topics  []string
+	Port           string
+	Host           string
+	Topics         []string
 	IncomingTx     chan types.Transaction
 	IncomingBlocks chan types.Block
-	socket  *zmq4.Socket
-	cancel  bool
+	socket         *zmq4.Socket
+	cancel         bool
 }
 
 func parseTransaction(firstSeen time.Time, msg [][]byte) (*types.Transaction, error) {
@@ -31,7 +32,7 @@ func parseTransaction(firstSeen time.Time, msg [][]byte) (*types.Transaction, er
 	// TODO: provider other values
 	return &types.Transaction{
 		FirstSeen: firstSeen,
-		TxID: txid,
+		TxID:      txid,
 	}, nil
 }
 
@@ -86,13 +87,13 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 
 	switch topic {
 	case TOPIC_HASHTX:
-		tx, err := parseTransaction(t, payload);
+		tx, err := parseTransaction(t, payload)
 		if err != nil {
 			return err
 		}
 		z.IncomingTx <- *tx
 	case TOPIC_RAWBLOCK:
-		block, err := parseBlock(t, payload);
+		block, err := parseBlock(t, payload)
 		if err != nil {
 			return err
 		}
@@ -108,7 +109,7 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 // `IncomingTx` and `IncomingBlocks`.
 // Returns error if something goes wrong and `nil` if stopped using `Stop()`
 func (z *ZMQSubscriber) Run() error {
-	defer func () {
+	defer func() {
 		if err := z.socket.Close(); err != nil {
 			log.Printf("[ZMQ] socket closed with error %q (ignored)", err)
 		}
@@ -133,7 +134,7 @@ func (z *ZMQSubscriber) Run() error {
 
 		msg, err := z.socket.RecvMessageBytes(0)
 		if err != nil {
-			if err == zmq4.ETIMEDOUT || err == zmq4.Errno(syscall.EAGAIN) {
+			if err == zmq4.ETIMEDOUT || err == zmq4.Errno(syscall.EAGAIN) || err == zmq4.Errno(syscall.EINTR) {
 				continue
 			}
 
