@@ -1,10 +1,15 @@
 package zmqsubscriber
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 	"syscall"
 	"time"
+
+	"github.com/btcsuite/btcd/wire"
 
 	"github.com/0xb10c/bademeister-go/src/types"
 
@@ -22,6 +27,7 @@ type ZMQSubscriber struct {
 
 const topicHashTx = "hashtx"
 const topicRawBlock = "rawblock"
+const topicRawTxWithFee = "rawtxwithfee"
 
 // NewZMQSubscriber creates and returns a new ZMQSubscriber,
 // which subscribes and connect to a Bitcoin Core ZMQ interface.
@@ -31,7 +37,7 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 		return nil, err
 	}
 
-	topics := []string{topicHashTx, topicRawBlock} //topicRawTxWithFee
+	topics := []string{topicRawTxWithFee, topicRawBlock}
 	for _, topic := range topics {
 		err := socket.SetSubscribe(topic)
 		if err != nil {
@@ -114,17 +120,23 @@ func (z *ZMQSubscriber) Run() error {
 
 func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 	// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
-	t := time.Now().UTC()
+	firstSeen := time.Now().UTC()
 
 	switch topic {
 	case topicHashTx:
-		tx, err := parseTransactionHash(t, payload)
+		tx, err := parseTransactionHash(firstSeen, payload)
+		if err != nil {
+			return err
+		}
+		z.IncomingTx <- *tx
+	case topicRawTxWithFee:
+		tx, err := parseTransaction(firstSeen, payload)
 		if err != nil {
 			return err
 		}
 		z.IncomingTx <- *tx
 	case topicRawBlock:
-		block, err := parseBlock(t, payload)
+		block, err := parseBlock(firstSeen, payload)
 		if err != nil {
 			return err
 		}
@@ -157,6 +169,48 @@ func parseTransactionHash(firstSeen time.Time, payload [][]byte) (*types.Transac
 	return &types.Transaction{
 		FirstSeen: firstSeen,
 		TxID:      txid,
+	}, nil
+}
+
+func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction, error) {
+	if len(payload) != 2 {
+		return nil, fmt.Errorf("unexpected payload length: expected len(tx hash, sequence) == 2 but got len(payload) == %d", len(payload))
+	}
+
+	// payload[1] contains a 16bit LE sequence number provided by Bitcoin Core,
+	// which is not used here, but noted for completeness.
+	// rawtxwithfee is the rawtx by Bitcoin Core concatinated with the 8 byte BE
+	// transaction fee. This is a patch from the branch
+	// https://github.com/0xB10C/bitcoin/tree/2019-10-rawtxwithfee-zmq-publisher
+	rawtxwithfee, _ := payload[0], payload[1]
+
+	length := len(rawtxwithfee)
+	if length <= 8 {
+		return nil, errors.New("unexpected rawtxwithfee length")
+	}
+	rawtx, feeBytes := rawtxwithfee[:length-8], rawtxwithfee[length-8:]
+
+	wireTx := wire.NewMsgTx(wire.TxVersion)
+	if err := wireTx.Deserialize(bytes.NewReader(rawtx)); err != nil {
+		return nil, fmt.Errorf("could not deserialize the rawtx as wire.MsgTx: %s", err)
+	}
+
+	var txid types.Hash32
+	wireTxHash := wireTx.TxHash()
+	copy(txid[:], []byte(wireTxHash.CloneBytes()))
+
+	fee := binary.BigEndian.Uint64(feeBytes)
+
+	var outputSum uint64 = 0
+	for _, txOut := range wireTx.TxOut {
+		outputSum += uint64(txOut.Value)
+	}
+
+	return &types.Transaction{
+		FirstSeen:   firstSeen,
+		TxID:        txid,
+		Fee:         fee,
+		OutputValue: outputSum,
 	}, nil
 }
 
