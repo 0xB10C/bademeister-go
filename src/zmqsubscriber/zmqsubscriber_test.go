@@ -1,32 +1,39 @@
 package zmqsubscriber
 
 import (
-	"github.com/0xb10c/bademeister-go/src/test"
-	"github.com/0xb10c/bademeister-go/src/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"log"
 	"testing"
+	"time"
+
+	"github.com/0xb10c/bademeister-go/src/test"
+	"github.com/0xb10c/bademeister-go/src/types"
+	"github.com/stretchr/testify/require"
 )
 
-func captureTxs(z *ZMQSubscriber) *[]types.Transaction {
-	txs := []types.Transaction{}
-	go func() {
-		for t := range z.IncomingTx {
-			txs = append(txs, t)
-		}
-	}()
-	return &txs
+// waitForZMQTransaction waits for a new transaction to come in over ZMQ. It
+// returns the transaction as soon as it comes in. Otherwise the function times
+// out after the specified `timeout` and returns nil.
+func waitForZMQTransaction(t *testing.T, z *ZMQSubscriber, timeout time.Duration) *types.Transaction {
+	select {
+	case tx := <-z.IncomingTx:
+		return &tx
+	case <-time.After(timeout):
+		t.Logf("Timed out while waiting for a transaction (timeout %s)", timeout)
+		return nil
+	}
 }
 
-func captureBlocks(z *ZMQSubscriber) *[]types.Block {
-	blocks := []types.Block{}
-	go func() {
-		for b := range z.IncomingBlocks {
-			blocks = append(blocks, b)
-		}
-	}()
-	return &blocks
+// waitForZMQBlock waits for a new blocks to come in over ZMQ. It returns the
+// block as soon as it comes in. Otherwise the function times out after the
+// specified `timeout` and returns nil.
+func waitForZMQBlock(t *testing.T, z *ZMQSubscriber, timeout time.Duration) *types.Block {
+	select {
+	case block := <-z.IncomingBlocks:
+		return &block
+	case <-time.After(timeout):
+		t.Logf("Timed out while waiting for a transaction (timeout %s)", timeout)
+		return nil
+	}
 }
 
 func getTestZMQSubscriber(t *testing.T, env test.TestEnv) *ZMQSubscriber {
@@ -43,22 +50,21 @@ func getTestZMQSubscriber(t *testing.T, env test.TestEnv) *ZMQSubscriber {
 }
 
 func TestZMQSubscriber(t *testing.T) {
+	const waitTimeout = 5 * time.Second
+
 	env := test.NewTestEnv()
 	defer env.Quit()
 
 	z := getTestZMQSubscriber(t, env)
 	defer z.Stop()
 
-	txs := captureTxs(z)
-	blocks := captureBlocks(z)
+	env.GenerateBlocks(1)
+	require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
+	require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
 
 	env.GenerateBlocks(1)
-	assert.Equal(t, 1, len(*txs))
-	assert.Equal(t, 1, len(*blocks))
-
-	env.GenerateBlocks(1)
-	assert.Equal(t, 2, len(*txs))
-	assert.Equal(t, 2, len(*blocks))
+	require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
+	require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
 
 	// Test second subscriber.
 	// This demonstrates that it should be possible to connect multiples instance of
@@ -67,14 +73,11 @@ func TestZMQSubscriber(t *testing.T) {
 		z2 := getTestZMQSubscriber(t, env)
 		defer z2.Stop()
 
-		txs2 := captureTxs(z2)
-		blocks2 := captureBlocks(z2)
-
 		env.GenerateBlocks(1)
+		require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
+		require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
 
-		assert.Equal(t, 3, len(*txs))
-		assert.Equal(t, 3, len(*blocks))
-		assert.Equal(t, 1, len(*txs2))
-		assert.Equal(t, 1, len(*blocks2))
+		require.NotNil(t, waitForZMQTransaction(t, z2, waitTimeout))
+		require.NotNil(t, waitForZMQBlock(t, z2, waitTimeout))
 	}
 }
