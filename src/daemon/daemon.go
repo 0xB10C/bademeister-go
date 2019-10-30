@@ -9,9 +9,9 @@ import (
 )
 
 type BademeisterDaemon struct {
-	zmqSub     	*zmqsubscriber.ZMQSubscriber
-	storage 	*storage.Storage
-	quit 		chan struct{}
+	zmqSub  *zmqsubscriber.ZMQSubscriber
+	storage *storage.Storage
+	quit    chan struct{}
 }
 
 // NewBademeisterDaemon initiates a new BademeisterDaemon.
@@ -47,7 +47,7 @@ func (b *BademeisterDaemon) dumpStats() {
 
 func (b *BademeisterDaemon) Run() error {
 	var zmqSubErr error
-	go func () {
+	go func() {
 		zmqSubErr = b.zmqSub.Run()
 		b.Stop()
 	}()
@@ -57,12 +57,12 @@ func (b *BademeisterDaemon) Run() error {
 		case <-b.quit:
 			log.Printf("Received quit signal")
 			return zmqSubErr
-		case tx := <- b.zmqSub.IncomingTx:
+		case tx := <-b.zmqSub.IncomingTx:
 			if err := b.processTransaction(&tx); err != nil {
 				log.Printf("Error in processTransaction()")
 				return err
 			}
-		case block := <- b.zmqSub.IncomingBlocks:
+		case block := <-b.zmqSub.IncomingBlocks:
 			if err := b.processBlock(&block); err != nil {
 				log.Printf("Error in processBlock()")
 				return err

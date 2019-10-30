@@ -25,12 +25,12 @@ func main() {
 	go func() {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
-		s := <- c
+		s := <-c
 		log.Printf("Received signal %s, shutting down", s)
 		d.Stop()
 	}()
 
-	errRun := d.Run();
+	errRun := d.Run()
 	if errRun != nil {
 		log.Printf("Error during operation, shutting down: %s", err)
 	}
