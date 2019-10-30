@@ -4,12 +4,13 @@ GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOFMT=$(GOCMD) fmt
+GOVET=$(GOCMD) vet
 
 BINARY_NAME_DAEMON=bademeisterd
 BINARY_NAME_API=bademeister-api
 
 
-all: go-fmt test build
+all: go-fmt go-vet test build
 build: build-daemon build-api
 build-daemon:
 				$(GOBUILD) -o $(BINARY_NAME_DAEMON) -v cmd/daemon/main.go
@@ -27,4 +28,5 @@ run-api: build-api
 				./$(BINARY_NAME_API)
 go-fmt:
 				$(GOFMT) ./...
-				
+go-vet:				
+				$(GOVET) ./...	
