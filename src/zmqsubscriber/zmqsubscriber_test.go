@@ -36,8 +36,8 @@ func waitForZMQBlock(t *testing.T, z *ZMQSubscriber, timeout time.Duration) *typ
 	}
 }
 
-func getTestZMQSubscriber(t *testing.T, env test.TestEnv) *ZMQSubscriber {
-	z, err := NewZMQSubscriber(env.ZmqHost, env.ZmqPort)
+func getTestZMQSubscriber(t *testing.T, env *test.TestEnv) *ZMQSubscriber {
+	z, err := NewZMQSubscriber(env.ZMQHost, env.ZMQPort)
 	require.NoError(t, err)
 
 	go func() {
@@ -52,19 +52,39 @@ func getTestZMQSubscriber(t *testing.T, env test.TestEnv) *ZMQSubscriber {
 func TestZMQSubscriber(t *testing.T) {
 	const waitTimeout = 5 * time.Second
 
-	env := test.NewTestEnv()
+	env, err := test.NewTestEnv()
+	if err != nil {
+		t.Errorf("Could not create a new test environment: %s", err)
+	}
 	defer env.Quit()
+
+	addressSendFrom, err := env.GetNewAddress()
+	if err != nil {
+		t.Errorf("could not generate a new bitcoin address: %s", err)
+	}
+
+	// Generate 101 blocks to have spendable UTXOs.
+	env.GenerateToAddress(101, addressSendFrom)
 
 	z := getTestZMQSubscriber(t, env)
 	defer z.Stop()
 
-	env.GenerateBlocks(1)
-	require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
+	addressSendTo, err := env.GetNewAddress()
+	if err != nil {
+		t.Errorf("could not generate a new bitcoin address: %s", err)
+	}
+
+	env.GenerateToAddress(1, addressSendFrom)
 	require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
 
-	env.GenerateBlocks(1)
+	env.SendSimpleTransaction(addressSendTo)
 	require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
+
+	env.GenerateToAddress(1, addressSendFrom)
 	require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
+
+	env.SendSimpleTransaction(addressSendTo)
+	require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
 
 	// Test second subscriber.
 	// This demonstrates that it should be possible to connect multiples instance of
@@ -73,11 +93,13 @@ func TestZMQSubscriber(t *testing.T) {
 		z2 := getTestZMQSubscriber(t, env)
 		defer z2.Stop()
 
-		env.GenerateBlocks(1)
-		require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
+		env.GenerateToAddress(1, addressSendFrom)
 		require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
-
-		require.NotNil(t, waitForZMQTransaction(t, z2, waitTimeout))
 		require.NotNil(t, waitForZMQBlock(t, z2, waitTimeout))
+
+		env.SendSimpleTransaction(addressSendTo)
+		require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
+		require.NotNil(t, waitForZMQTransaction(t, z2, waitTimeout))
+
 	}
 }

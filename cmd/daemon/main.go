@@ -2,10 +2,11 @@ package main
 
 import (
 	"flag"
-	"github.com/0xb10c/bademeister-go/src/daemon"
 	"log"
 	"os"
 	"os/signal"
+
+	"github.com/0xb10c/bademeister-go/src/daemon"
 )
 
 var zmqHost = flag.String("zmq-host", "127.0.0.1", "zmq host")
