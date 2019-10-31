@@ -4,10 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	"github.com/0xb10c/bademeister-go/src/types"
-	"github.com/btcsuite/btcd/btcjson"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/rpcclient"
 	"io/ioutil"
 	"log"
 	"os"
@@ -15,6 +11,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/0xb10c/bademeister-go/src/types"
+	"github.com/btcsuite/btcd/btcjson"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/rpcclient"
 )
 
 const DataDir = "/tmp/test-bademeister-go"
@@ -23,8 +24,8 @@ const zmqPort = "28334"
 const rpcPort = 18333
 
 type TestEnv struct {
-	cmd *exec.Cmd
-	rpc *rpcclient.Client
+	cmd     *exec.Cmd
+	rpc     *rpcclient.Client
 	ZmqHost string
 	ZmqPort string
 }
@@ -50,11 +51,11 @@ func newBitcoindRpc() (*rpcclient.Client, error) {
 
 	parts := strings.Split(string(cookie), ":")
 	cfg := &rpcclient.ConnConfig{
-		Host: fmt.Sprintf("127.0.0.1:%d", rpcPort),
-		User: parts[0],
-		Pass: parts[1],
+		Host:         fmt.Sprintf("127.0.0.1:%d", rpcPort),
+		User:         parts[0],
+		Pass:         parts[1],
 		HTTPPostMode: true,
-		DisableTLS: true,
+		DisableTLS:   true,
 	}
 	rpc, err := rpcclient.New(cfg, nil)
 	if err != nil {
@@ -71,7 +72,7 @@ func newBitcoindRpc() (*rpcclient.Client, error) {
 
 		if rpcErr, ok := err.(*btcjson.RPCError); ok {
 			if rpcErr.Code == -28 {
-				time.Sleep(100* time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 		}
@@ -131,8 +132,6 @@ func (e *TestEnv) GenerateBlocks(n uint32) []*chainhash.Hash {
 	if err != nil {
 		panic(err)
 	}
-	// allow txs to propagate to zmq
-	time.Sleep(200 * time.Millisecond)
 	return hashes
 }
 
@@ -148,7 +147,7 @@ func (e *TestEnv) Quit() {
 		return
 	}
 
-	exitErr, ok := err.(*exec.ExitError);
+	exitErr, ok := err.(*exec.ExitError)
 	if !ok {
 		panic(err)
 	}
