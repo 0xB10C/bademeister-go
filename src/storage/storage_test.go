@@ -66,15 +66,19 @@ func TestStorage(t *testing.T) {
 		{
 			TxID:      test.NewTestTxId(nil),
 			FirstSeen: tm,
+			Fee:       232,
+			Size:      123,
 		},
 		{
 			TxID:      test.NewTestTxId(nil),
 			FirstSeen: tm.Add(10 * time.Second),
+			Fee:       1234567890,
+			Size:      12345,
 		},
 	}
 
 	for _, tx := range txs {
-		err := st.AddTransaction(&tx)
+		err := st.InsertTransaction(&tx)
 		require.NoError(t, err)
 	}
 
@@ -89,13 +93,13 @@ func TestStorage(t *testing.T) {
 
 	// repeated insertion with same txid upserts iff FirstSeen is lower
 	{
-		err = st.AddTransaction(&txs[0])
+		err = st.InsertTransaction(&txs[0])
 		require.NoError(t, err)
 		testQueryTransactions(t, st, tm, txs)
 
 		txLater := txs[0]
 		txLater.FirstSeen = txLater.FirstSeen.Add(10 * time.Second)
-		err = st.AddTransaction(&txLater)
+		err = st.InsertTransaction(&txLater)
 		require.NoError(t, err)
 		testQueryTransactions(t, st, tm, txs)
 	}
@@ -103,10 +107,12 @@ func TestStorage(t *testing.T) {
 	{
 		txEarlier := txs[0]
 		txEarlier.FirstSeen = txEarlier.FirstSeen.Add(-10 * time.Second)
-		err = st.AddTransaction(&txEarlier)
+		err = st.InsertTransaction(&txEarlier)
 		require.NoError(t, err)
 		testQueryTransactions(t, st, tm, []types.Transaction{txEarlier, txs[1]})
 	}
 
-	assert.Equal(t, 2, st.TxCount())
+	count, err := st.TxCount()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
 }

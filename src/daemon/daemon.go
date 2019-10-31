@@ -2,10 +2,11 @@ package daemon
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/0xb10c/bademeister-go/src/storage"
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
-	"log"
 )
 
 type BademeisterDaemon struct {
@@ -32,7 +33,7 @@ func NewBademeisterDaemon(host, port, dbPath string) (*BademeisterDaemon, error)
 
 func (b *BademeisterDaemon) processTransaction(tx *types.Transaction) error {
 	log.Printf("Received transaction, adding to storage")
-	return b.storage.AddTransaction(tx)
+	return b.storage.InsertTransaction(tx)
 }
 
 func (b *BademeisterDaemon) processBlock(block *types.Block) error {
@@ -42,7 +43,12 @@ func (b *BademeisterDaemon) processBlock(block *types.Block) error {
 }
 
 func (b *BademeisterDaemon) dumpStats() {
-	log.Printf("TxCount()=%d", b.storage.TxCount())
+	count, err := b.storage.TxCount()
+	if err != nil {
+		log.Printf("Can not dump stats: %s", err)
+		return
+	}
+	log.Printf("Current transaction count: %d", count)
 }
 
 func (b *BademeisterDaemon) Run() error {

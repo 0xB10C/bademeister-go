@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"syscall"
 	"time"
 
@@ -201,16 +202,14 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 
 	fee := binary.BigEndian.Uint64(feeBytes)
 
-	var outputSum uint64 = 0
-	for _, txOut := range wireTx.TxOut {
-		outputSum += uint64(txOut.Value)
-	}
+	vsizeFloat := (float64(wireTx.SerializeSizeStripped()*3) + float64(wireTx.SerializeSize())) / 4
+	vsize := int(math.Ceil(vsizeFloat))
 
 	return &types.Transaction{
-		FirstSeen:   firstSeen,
-		TxID:        txid,
-		Fee:         fee,
-		OutputValue: outputSum,
+		FirstSeen: firstSeen,
+		TxID:      txid,
+		Fee:       fee,
+		Size:      vsize,
 	}, nil
 }
 
