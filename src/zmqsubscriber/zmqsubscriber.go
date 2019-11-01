@@ -67,7 +67,7 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 
 // Run starts receiving new ZMQ messages. These messages are parsed according to
 // their topic and passed as native data types into the corresponding channels
-// (`IncomingTx` or `IncomingBlocks). Run returns an error if an error occurs
+// (`IncomingTx` or `IncomingBlocks`). Run returns an error if an error occurs
 // while parsing. On normal stops with `Stop()` `nil` is returned.
 func (z *ZMQSubscriber) Run() error {
 	defer func() {

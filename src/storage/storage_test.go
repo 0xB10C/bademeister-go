@@ -1,12 +1,11 @@
 package storage
 
 import (
-	"fmt"
+	"crypto/sha256"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/0xb10c/bademeister-go/src/test"
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,16 +43,21 @@ func testQueryTransactions(t *testing.T, st *Storage, firstSeen time.Time, txs [
 	}
 }
 
-func TestStorage(t *testing.T) {
-	path := fmt.Sprintf("%s/storageTest.db", test.DataDir)
+// generateTestTxID returns the hash of a provided preimage.
+func generateTestTxID(preimage []byte) types.Hash32 {
+	return sha256.Sum256(preimage)
+}
 
-	if err := os.Remove(path); err != nil {
-		if !os.IsNotExist(err) {
-			t.Fail()
-		}
+func TestStorage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
 	}
 
-	// create from empty file
+	// The environment variable `TEST_INTEGRATION_DIR` is set to a temporary
+	// directory created by the Makefile in the target `test-integration`.
+	integrationTestDir := os.Getenv("TEST_INTEGRATION_DIR")
+	path := integrationTestDir + "/mempool.db"
+
 	st, err := NewStorage(path)
 	require.NoError(t, err)
 
@@ -64,13 +68,13 @@ func TestStorage(t *testing.T) {
 	tm := time.Now().UTC().Truncate(time.Second)
 	txs := []types.Transaction{
 		{
-			TxID:      test.NewTestTxId(nil),
+			TxID:      generateTestTxID([]byte("tx 1")),
 			FirstSeen: tm,
 			Fee:       232,
 			Size:      123,
 		},
 		{
-			TxID:      test.NewTestTxId(nil),
+			TxID:      generateTestTxID([]byte("tx 2")),
 			FirstSeen: tm.Add(10 * time.Second),
 			Fee:       1234567890,
 			Size:      12345,

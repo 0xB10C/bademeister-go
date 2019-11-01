@@ -6,16 +6,18 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-    
-    - name: Install package dependencies 
-      run: sudo apt install -y libzmq3-dev sqlite3 
-    
+
+    - name: Install package dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y libzmq3-dev sqlite3 libboost-all-dev
+
     - name: Download bitcoind v0.18.1 binary
       run: |
         wget https://github.com/0xB10C/bademeister-go/releases/download/0.0.0-bitcoind.0.18.1/bitcoind_v0.18.1_for_GitHubActionsCI.tar.xz
         tar xf bitcoind_v0.18.1_for_GitHubActionsCI.tar.xz
-        sudo mv bitcoind /usr/local/bin/bitcoind 
-        
+        sudo mv bitcoind /usr/local/bin/bitcoind
+
     - name: Set up Go 1.13
       uses: actions/setup-go@v1
       with:
@@ -35,6 +37,6 @@ jobs:
 
     - name: Run tests (Makefile)
       run: make test
-      
+
     - name: Build (Makefile)
       run: make build
