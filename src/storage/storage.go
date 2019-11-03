@@ -11,8 +11,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const currentVersion = 3
+const currentVersion = 4
 
+// Storage represents a SQL database.
 type Storage struct {
 	db *sql.DB
 }
@@ -50,6 +51,8 @@ func NewStorage(path string) (*Storage, error) {
 	return &s, nil
 }
 
+// initialize creates tables for a new database and fills in the configuration.
+// The caller must make sure that the database isn't initialized already.
 func (s *Storage) initialize(version int) error {
 	log.Printf("Initializing a new database with version %d.\n", version)
 
@@ -75,7 +78,7 @@ func (s *Storage) initialize(version int) error {
 			txid 				BLOB 	UNIQUE NOT NULL,
 			first_seen 	INT,
 			fee 				INT,
-			size 				INT
+			weight 			INT
 		)
 	`
 
@@ -98,7 +101,7 @@ func (s *Storage) getVersion() (version int) {
 }
 
 func (s *Storage) TxCount() (count int, err error) {
-	row := s.db.QueryRow(`SELECT COUNT(*) FROM mempool_tx`)
+	row := s.db.QueryRow(`SELECT COUNT(txid) FROM mempool_tx`)
 	if err := row.Scan(&count); err != nil {
 		return 0, fmt.Errorf("could not get count from table `mempool_tx`: %s", err)
 	}
@@ -118,7 +121,7 @@ func (s *Storage) migrate(fromVersion int) error {
 
 func (s *Storage) InsertTransaction(tx *types.Transaction) error {
 	const insertTransaction string = `
-	INSERT INTO mempool_tx (txid, first_seen, fee, size) VALUES(?, ?, ?, ?)
+	INSERT INTO mempool_tx (txid, first_seen, fee, weight) VALUES(?, ?, ?, ?)
 	ON CONFLICT(txid) DO
 		UPDATE SET
 			first_seen = excluded.first_seen
@@ -129,7 +132,7 @@ func (s *Storage) InsertTransaction(tx *types.Transaction) error {
 	// The firstSeen timestamp might not be to be monotonic, since transactions
 	// can be inserted from multiple sources (ZMQ and getrawmempool RPC).
 	// https://www.sqlite.org/lang_UPSERT.html
-	_, err := s.db.Exec(insertTransaction, tx.TxID[:], tx.FirstSeen.UTC().Unix(), tx.Fee, tx.Size)
+	_, err := s.db.Exec(insertTransaction, tx.TxID[:], tx.FirstSeen.UTC().Unix(), tx.Fee, tx.Weight)
 	if err != nil {
 		return fmt.Errorf("could not insert a transaction into table `mempool_tx`: %s", err)
 	}
@@ -152,9 +155,9 @@ func (i *TxIterator) Next() *types.Transaction {
 	var txidBytes []byte
 	var firstSeen int64
 	var fee uint64
-	var size int
-	if err := i.rows.Scan(&txidBytes, &firstSeen, &fee, &size); err != nil {
-		panic(err) // TODO: cleanup
+	var weight int
+	if err := i.rows.Scan(&txidBytes, &firstSeen, &fee, &weight); err != nil {
+		panic(err)
 	}
 
 	var txid types.Hash32
@@ -163,7 +166,7 @@ func (i *TxIterator) Next() *types.Transaction {
 		TxID:      txid,
 		FirstSeen: time.Unix(firstSeen, 0).UTC(),
 		Fee:       fee,
-		Size:      size,
+		Weight:    weight,
 	}
 }
 
@@ -175,7 +178,7 @@ func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	var rows *sql.Rows
 	var err error
 
-	baseQuery := `SELECT txid, first_seen, fee, size FROM mempool_tx`
+	baseQuery := `SELECT txid, first_seen, fee, weight FROM mempool_tx`
 
 	if q.FirstSeen == nil {
 		rows, err = s.db.Query(baseQuery)

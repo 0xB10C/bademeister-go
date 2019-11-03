@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math"
 	"syscall"
 	"time"
 
@@ -201,15 +200,13 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 	copy(txid[:], []byte(wireTxHash.CloneBytes()))
 
 	fee := binary.BigEndian.Uint64(feeBytes)
-
-	vsizeFloat := (float64(wireTx.SerializeSizeStripped()*3) + float64(wireTx.SerializeSize())) / 4
-	vsize := int(math.Ceil(vsizeFloat))
+	weight := wireTx.SerializeSizeStripped()*3 + wireTx.SerializeSize()
 
 	return &types.Transaction{
 		FirstSeen: firstSeen,
 		TxID:      txid,
 		Fee:       fee,
-		Size:      vsize,
+		Weight:    weight,
 	}, nil
 }
 

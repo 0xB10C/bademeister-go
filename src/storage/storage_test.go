@@ -71,13 +71,13 @@ func TestStorage(t *testing.T) {
 			TxID:      generateTestTxID([]byte("tx 1")),
 			FirstSeen: tm,
 			Fee:       232,
-			Size:      123,
+			Weight:    489,
 		},
 		{
 			TxID:      generateTestTxID([]byte("tx 2")),
 			FirstSeen: tm.Add(10 * time.Second),
 			Fee:       1234567890,
-			Size:      12345,
+			Weight:    12345,
 		},
 	}
 
