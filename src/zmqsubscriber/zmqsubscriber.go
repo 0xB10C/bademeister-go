@@ -25,7 +25,6 @@ type ZMQSubscriber struct {
 	cancel         bool
 }
 
-const topicHashTx = "hashtx"
 const topicRawBlock = "rawblock"
 const topicRawTxWithFee = "rawtxwithfee"
 
@@ -123,12 +122,6 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 	firstSeen := time.Now().UTC()
 
 	switch topic {
-	case topicHashTx:
-		tx, err := parseTransactionHash(firstSeen, payload)
-		if err != nil {
-			return err
-		}
-		z.IncomingTx <- *tx
 	case topicRawTxWithFee:
 		tx, err := parseTransaction(firstSeen, payload)
 		if err != nil {
@@ -152,24 +145,6 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 // finishes receiving a message or reaches the timeout.
 func (z *ZMQSubscriber) Stop() {
 	z.cancel = true
-}
-
-func parseTransactionHash(firstSeen time.Time, payload [][]byte) (*types.Transaction, error) {
-	if len(payload) != 2 {
-		return nil, fmt.Errorf("unexpected payload length: expected len((tx hash, sequence) == 2 but got len(payload) == %d", len(payload))
-	}
-
-	// payload[1] contains a 16bit LE sequence number provided by Bitcoin Core,
-	// which is not used here, but noted for completeness.
-	txhash, _ := payload[0], payload[1]
-
-	var txid types.Hash32
-	copy(txid[:], txhash)
-
-	return &types.Transaction{
-		FirstSeen: firstSeen,
-		TxID:      txid,
-	}, nil
 }
 
 func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction, error) {
