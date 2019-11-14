@@ -1,14 +1,23 @@
 package zmqsubscriber
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/0xb10c/bademeister-go/src/test"
+	"github.com/0xb10c/bademeister-go/src/bitcoinrpcclient"
+
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/require"
 )
+
+// TestMain is called by `go test` and is the entry point for this tests file.
+func TestMain(m *testing.M) {
+	result := m.Run()
+	os.Exit(result)
+}
 
 // waitForZMQTransaction waits for a new transaction to come in over ZMQ. It
 // returns the transaction as soon as it comes in. Otherwise the function times
@@ -31,14 +40,16 @@ func waitForZMQBlock(t *testing.T, z *ZMQSubscriber, timeout time.Duration) *typ
 	case block := <-z.IncomingBlocks:
 		return &block
 	case <-time.After(timeout):
-		t.Logf("Timed out while waiting for a transaction (timeout %s)", timeout)
+		t.Logf("Timed out while waiting for a block (timeout %s)", timeout)
 		return nil
 	}
 }
 
-func getTestZMQSubscriber(t *testing.T, env test.TestEnv) *ZMQSubscriber {
-	z, err := NewZMQSubscriber(env.ZmqHost, env.ZmqPort)
-	require.NoError(t, err)
+func setupAndRunZMQSubscriber(t *testing.T, zmqHost string, zmqPort string) (*ZMQSubscriber, error) {
+	z, err := NewZMQSubscriber(zmqHost, zmqPort)
+	if err != nil {
+		return nil, fmt.Errorf("could not create a new ZMQ Subscriber: %s", err)
+	}
 
 	go func() {
 		if err := z.Run(); err != nil {
@@ -46,38 +57,73 @@ func getTestZMQSubscriber(t *testing.T, env test.TestEnv) *ZMQSubscriber {
 		}
 	}()
 
-	return z
+	return z, nil
 }
 
 func TestZMQSubscriber(t *testing.T) {
-	const waitTimeout = 5 * time.Second
+	if testing.Short() {
+		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
+	}
 
-	env := test.NewTestEnv()
-	defer env.Quit()
+	const zmqWaitTimeout = 5 * time.Second
 
-	z := getTestZMQSubscriber(t, env)
+	// The environment variables `TEST_INTEGRATION_*` are set in the Makefile.
+	zmqHost := os.Getenv("TEST_INTEGRATION_ZMQ_HOST")
+	zmqPort := os.Getenv("TEST_INTEGRATION_ZMQ_PORT")
+	rpcHost := os.Getenv("TEST_INTEGRATION_RPC_HOST")
+	rpcPort := os.Getenv("TEST_INTEGRATION_RPC_PORT")
+	rpcUser := os.Getenv("TEST_INTEGRATION_RPC_USER")
+	rpcPass := os.Getenv("TEST_INTEGRATION_RPC_PASS")
+
+	rpcClient, err := bitcoinrpcclient.NewBitcoinRPCClient(rpcUser, rpcPass, rpcHost, rpcPort)
+	require.NoError(t, err)
+
+	addressMineTo, err := rpcClient.GetNewAddress("addressMineTo")
+	require.NoError(t, err)
+
+	// Generate 101 blocks to have spendable UTXOs.
+	rpcClient.GenerateToAddress(101, addressMineTo)
+
+	addressSendTo, err := rpcClient.GetNewAddress("addressSendTo")
+	require.NoError(t, err)
+
+	z, err := setupAndRunZMQSubscriber(t, zmqHost, zmqPort)
+	require.NoError(t, err)
 	defer z.Stop()
 
-	env.GenerateBlocks(1)
-	require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
-	require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
+	_, err = rpcClient.GenerateToAddress(1, addressMineTo)
+	require.NoError(t, err)
+	require.NotNil(t, waitForZMQBlock(t, z, zmqWaitTimeout))
 
-	env.GenerateBlocks(1)
-	require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
-	require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
+	_, err = rpcClient.SendSimpleTransaction(addressSendTo)
+	require.NoError(t, err)
+	require.NotNil(t, waitForZMQTransaction(t, z, zmqWaitTimeout))
+
+	_, err = rpcClient.GenerateToAddress(1, addressMineTo)
+	require.NoError(t, err)
+	require.NotNil(t, waitForZMQBlock(t, z, zmqWaitTimeout))
+
+	_, err = rpcClient.SendSimpleTransaction(addressSendTo)
+	require.NoError(t, err)
+	require.NotNil(t, waitForZMQTransaction(t, z, zmqWaitTimeout))
 
 	// Test second subscriber.
 	// This demonstrates that it should be possible to connect multiples instance of
 	// Bademeisterd and have continuous capture.
 	{
-		z2 := getTestZMQSubscriber(t, env)
+		z2, err := setupAndRunZMQSubscriber(t, zmqHost, zmqPort)
+		require.NoError(t, err)
 		defer z2.Stop()
 
-		env.GenerateBlocks(1)
-		require.NotNil(t, waitForZMQTransaction(t, z, waitTimeout))
-		require.NotNil(t, waitForZMQBlock(t, z, waitTimeout))
+		_, err = rpcClient.GenerateToAddress(1, addressMineTo)
+		require.NoError(t, err)
+		require.NotNil(t, waitForZMQBlock(t, z, zmqWaitTimeout))
+		require.NotNil(t, waitForZMQBlock(t, z2, zmqWaitTimeout))
 
-		require.NotNil(t, waitForZMQTransaction(t, z2, waitTimeout))
-		require.NotNil(t, waitForZMQBlock(t, z2, waitTimeout))
+		_, err = rpcClient.SendSimpleTransaction(addressSendTo)
+		require.NoError(t, err)
+		require.NotNil(t, waitForZMQTransaction(t, z, zmqWaitTimeout))
+		require.NotNil(t, waitForZMQTransaction(t, z2, zmqWaitTimeout))
+
 	}
 }

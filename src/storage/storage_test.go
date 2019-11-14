@@ -1,12 +1,11 @@
 package storage
 
 import (
-	"fmt"
+	"crypto/sha256"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/0xb10c/bademeister-go/src/test"
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,16 +43,21 @@ func testQueryTransactions(t *testing.T, st *Storage, firstSeen time.Time, txs [
 	}
 }
 
-func TestStorage(t *testing.T) {
-	path := fmt.Sprintf("%s/storageTest.db", test.DataDir)
+// generateTestTxID returns the hash of a provided preimage.
+func generateTestTxID(preimage []byte) types.Hash32 {
+	return sha256.Sum256(preimage)
+}
 
-	if err := os.Remove(path); err != nil {
-		if !os.IsNotExist(err) {
-			t.Fail()
-		}
+func TestStorage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
 	}
 
-	// create from empty file
+	// The environment variable `TEST_INTEGRATION_DIR` is set to a temporary
+	// directory created by the Makefile in the target `test-integration`.
+	integrationTestDir := os.Getenv("TEST_INTEGRATION_DIR")
+	path := integrationTestDir + "/mempool.db"
+
 	st, err := NewStorage(path)
 	require.NoError(t, err)
 
@@ -64,17 +68,21 @@ func TestStorage(t *testing.T) {
 	tm := time.Now().UTC().Truncate(time.Second)
 	txs := []types.Transaction{
 		{
-			TxID:      test.NewTestTxId(nil),
+			TxID:      generateTestTxID([]byte("tx 1")),
 			FirstSeen: tm,
+			Fee:       232,
+			Weight:    489,
 		},
 		{
-			TxID:      test.NewTestTxId(nil),
+			TxID:      generateTestTxID([]byte("tx 2")),
 			FirstSeen: tm.Add(10 * time.Second),
+			Fee:       1234567890,
+			Weight:    12345,
 		},
 	}
 
 	for _, tx := range txs {
-		err := st.AddTransaction(&tx)
+		err := st.InsertTransaction(&tx)
 		require.NoError(t, err)
 	}
 
@@ -89,13 +97,13 @@ func TestStorage(t *testing.T) {
 
 	// repeated insertion with same txid upserts iff FirstSeen is lower
 	{
-		err = st.AddTransaction(&txs[0])
+		err = st.InsertTransaction(&txs[0])
 		require.NoError(t, err)
 		testQueryTransactions(t, st, tm, txs)
 
 		txLater := txs[0]
 		txLater.FirstSeen = txLater.FirstSeen.Add(10 * time.Second)
-		err = st.AddTransaction(&txLater)
+		err = st.InsertTransaction(&txLater)
 		require.NoError(t, err)
 		testQueryTransactions(t, st, tm, txs)
 	}
@@ -103,10 +111,12 @@ func TestStorage(t *testing.T) {
 	{
 		txEarlier := txs[0]
 		txEarlier.FirstSeen = txEarlier.FirstSeen.Add(-10 * time.Second)
-		err = st.AddTransaction(&txEarlier)
+		err = st.InsertTransaction(&txEarlier)
 		require.NoError(t, err)
 		testQueryTransactions(t, st, tm, []types.Transaction{txEarlier, txs[1]})
 	}
 
-	assert.Equal(t, 2, st.TxCount())
+	count, err := st.TxCount()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
 }

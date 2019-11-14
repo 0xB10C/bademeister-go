@@ -1,20 +1,38 @@
+export SHELL:=/bin/bash
+export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
+.ONESHELL:
+
 # Go parameters
 GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
+GOFMT=$(GOCMD) fmt
+GOVET=$(GOCMD) vet
 
+# binary names
 BINARY_NAME_DAEMON=bademeisterd
 BINARY_NAME_API=bademeister-api
 
-all: test build
+# integration test constants
+TEST_INTEGRATION_DOCKER_IMAGE_TAG="v0.19.99.0-gf03785b4"
+TEST_INTEGRATION_DOCKER_CONTAINER_NAME="bitcoind-bademeister-ci"
+
+TEST_INTEGRATION_RPC_HOST="127.0.0.1"
+TEST_INTEGRATION_RPC_PORT="18443"
+TEST_INTEGRATION_RPC_USER="use-for-regtest-and-ci-only"
+TEST_INTEGRATION_RPC_PASS="0rU3Doo7M6FCPc8SmBB2aLqUEd6b1Jgcl-o-c86JJ9k="
+TEST_INTEGRATION_ZMQ_HOST="0.0.0.0"
+TEST_INTEGRATION_ZMQ_PORT="28334"
+
+
+all: go-fmt go-vet test-unit build
+ci: go-fmt go-vet test build
 build: build-daemon build-api
 build-daemon:
 				$(GOBUILD) -o $(BINARY_NAME_DAEMON) -v cmd/daemon/main.go
 build-api:
 				$(GOBUILD) -o $(BINARY_NAME_API) -v cmd/api/main.go
-test:
-				$(GOTEST) -v ./...
 clean:
 				$(GOCLEAN)
 				rm -f $(BINARY_NAME_DAEMON)
@@ -23,3 +41,57 @@ run-daemon: build-daemon
 				./$(BINARY_NAME_DAEMON)
 run-api: build-api
 				./$(BINARY_NAME_API)
+go-fmt:
+				@$(GOFMT) ./...
+go-vet:
+				@$(GOVET) ./...
+test: test-unit test-integration
+test-unit:
+				$(GOTEST) -v -short ./...
+test-integration:
+				@echo ""
+				$(eval TEST_INTEGRATION_DIR := $(shell mktemp -d -t bademeister-test-XXXXXX))
+				@echo "Using TEST_INTEGRATION_DIR = $(TEST_INTEGRATION_DIR)"
+
+				function removeTmpDir {
+					echo "removing $(TEST_INTEGRATION_DIR)"
+					rm -rf $(TEST_INTEGRATION_DIR)
+				}
+
+				@echo "starting bitcoind docker"
+				docker run --rm -it \
+					--name ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME} \
+					-p ${TEST_INTEGRATION_RPC_PORT}:${TEST_INTEGRATION_RPC_PORT} \
+					-p ${TEST_INTEGRATION_ZMQ_PORT}:${TEST_INTEGRATION_ZMQ_PORT} \
+					-d \
+					b10c/bitcoind-patched-zmq:${TEST_INTEGRATION_DOCKER_IMAGE_TAG} \
+						-server=1 \
+						-regtest=1 \
+						-printtoconsole \
+						-rpcbind=0.0.0.0 \
+						-rpcallowip=172.17.0.0/16 \
+						-rpcuser=${TEST_INTEGRATION_RPC_USER} \
+						-rpcpassword=${TEST_INTEGRATION_RPC_PASS} \
+						-zmqpubrawblock="tcp://${TEST_INTEGRATION_ZMQ_HOST}:${TEST_INTEGRATION_ZMQ_PORT}" \
+						-zmqpubrawtxwithfee="tcp://${TEST_INTEGRATION_ZMQ_HOST}:${TEST_INTEGRATION_ZMQ_PORT}" \
+						-fallbackfee=0.00001 \
+						-debug=rpc
+
+				function stop_bitcoind {
+					@echo "bitcoind shutdown initiated..."
+					@docker kill ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME}
+					@echo "bitcoind stopped"
+					removeTmpDir
+				}
+
+				trap stop_bitcoind EXIT
+
+				@echo "running integration tests"
+				TEST_INTEGRATION_DIR=${TEST_INTEGRATION_DIR} \
+				TEST_INTEGRATION_ZMQ_HOST=${TEST_INTEGRATION_ZMQ_HOST} \
+				TEST_INTEGRATION_ZMQ_PORT=${TEST_INTEGRATION_ZMQ_PORT} \
+				TEST_INTEGRATION_RPC_HOST=${TEST_INTEGRATION_RPC_HOST} \
+				TEST_INTEGRATION_RPC_PORT=${TEST_INTEGRATION_RPC_PORT} \
+				TEST_INTEGRATION_RPC_USER=${TEST_INTEGRATION_RPC_USER} \
+				TEST_INTEGRATION_RPC_PASS=${TEST_INTEGRATION_RPC_PASS} \
+					$(GOTEST) -v ./...

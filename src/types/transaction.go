@@ -8,8 +8,8 @@ import (
 type Transaction struct {
 	TxID         Hash32    `json:"txid"`
 	FirstSeen    time.Time `json:"firstSeen"`
-	OutputValue  uint64    `json:"outputValue"`
 	Fee          uint64    `json:"fee"`
+	Weight       int       `json:"weight"`
 	BlockHeight  int32     `json:"blockHeight"`
 	IndexInBlock int32     `json:"indexInBlock"`
 }

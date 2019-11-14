@@ -1,56 +1,42 @@
 package zmqsubscriber
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 	"syscall"
 	"time"
+
+	"github.com/btcsuite/btcd/wire"
 
 	"github.com/0xb10c/bademeister-go/src/types"
 
 	"github.com/pebbe/zmq4"
 )
 
+// ZMQSubscriber represents a ZMQ subscriber for the Bitcoin Core ZMQ interface
 type ZMQSubscriber struct {
-	Port           string
-	Host           string
-	Topics         []string
 	IncomingTx     chan types.Transaction
 	IncomingBlocks chan types.Block
+	topics         []string
 	socket         *zmq4.Socket
 	cancel         bool
 }
 
-func parseTransaction(firstSeen time.Time, msg [][]byte) (*types.Transaction, error) {
-	if len(msg) != 2 {
-		panic(fmt.Sprintf("unknown message format: len(msg)=%d", len(msg)))
-	}
-	txhash, ctr := msg[0], msg[1]
-	_ = ctr
-	var txid types.Hash32
-	copy(txid[:], txhash)
-	// TODO: provider other values
-	return &types.Transaction{
-		FirstSeen: firstSeen,
-		TxID:      txid,
-	}, nil
-}
+const topicRawBlock = "rawblock"
+const topicRawTxWithFee = "rawtxwithfee"
 
-func parseBlock(firstSeen time.Time, msg [][]byte) (*types.Block, error) {
-	// TODO
-	return &types.Block{}, nil
-}
-
-const TOPIC_HASHTX = "hashtx"
-const TOPIC_RAWBLOCK = "rawblock"
-
+// NewZMQSubscriber creates and returns a new ZMQSubscriber,
+// which subscribes and connect to a Bitcoin Core ZMQ interface.
 func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 	socket, err := zmq4.NewSocket(zmq4.SUB)
 	if err != nil {
 		return nil, err
 	}
 
-	topics := []string{TOPIC_HASHTX, TOPIC_RAWBLOCK}
+	topics := []string{topicRawTxWithFee, topicRawBlock}
 	for _, topic := range topics {
 		err := socket.SetSubscribe(topic)
 		if err != nil {
@@ -59,21 +45,17 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 	}
 
 	connectionString := "tcp://" + host + ":" + port
-	err = socket.Connect(connectionString)
-	if err != nil {
-		log.Printf("Could not connect ZMQ subscriber to '%s': %s\n", connectionString, err)
-		return nil, err
+	if err = socket.Connect(connectionString); err != nil {
+		return nil, fmt.Errorf("could not connect ZMQ subscriber to '%s': %s", connectionString, err)
 	}
 
-	log.Printf("[ZMQ] successfully connected to %s", connectionString)
+	log.Printf("ZMQ subscriber successfully connected to %s", connectionString)
 
 	incomingTx := make(chan types.Transaction)
 	incomingBlocks := make(chan types.Block)
 
 	return &ZMQSubscriber{
-		Host:           host,
-		Port:           port,
-		Topics:         topics,
+		topics:         topics,
 		IncomingTx:     incomingTx,
 		IncomingBlocks: incomingBlocks,
 		socket:         socket,
@@ -81,19 +63,73 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 	}, nil
 }
 
+// Run starts receiving new ZMQ messages. These messages are parsed according to
+// their topic and passed as native data types into the corresponding channels
+// (`IncomingTx` or `IncomingBlocks`). Run returns an error if an error occurs
+// while parsing. On normal stops with `Stop()` `nil` is returned.
+func (z *ZMQSubscriber) Run() error {
+	defer func() {
+		if err := z.socket.Close(); err != nil {
+			log.Printf("ZMQ subscriber socket closed with error (ignored): %s\n", err)
+		}
+	}()
+
+	parseErrors := make(chan error)
+
+	if err := z.socket.SetRcvtimeo(time.Second); err != nil {
+		return fmt.Errorf("could not set a receive timeout: %s", err)
+	}
+
+	// FIXME(#11):
+	// Workaround for a zmq crash when Close() is called from a different
+	// goroutine. Instead of permanently blocking on Recv(), a timeout is set and
+	// we check for `z.cancel`.
+	for !z.cancel {
+		select {
+		case err := <-parseErrors:
+			return err
+		default:
+		}
+
+		msg, err := z.socket.RecvMessageBytes(0)
+		if err != nil {
+			if err == zmq4.Errno(syscall.EAGAIN) {
+				log.Println("No ZMQ message received in the last second.")
+				continue
+			} else if err == zmq4.Errno(syscall.EINTR) {
+				continue
+			}
+			return fmt.Errorf("could not receive ZMQ message: %s", err)
+		}
+
+		topic, payload := string(msg[0]), msg[1:]
+		log.Printf("ZMQ subscriber received topic %s", topic)
+
+		// received messages are processed asynchronously so that the queue does not
+		// stall while parsing
+		go func() {
+			if err := z.processMessage(topic, payload); err != nil {
+				parseErrors <- err
+			}
+		}()
+	}
+
+	return nil
+}
+
 func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 	// TODO: use GetTime() and allow other time sources (eg NTP-corrected)
-	t := time.Now().UTC()
+	firstSeen := time.Now().UTC()
 
 	switch topic {
-	case TOPIC_HASHTX:
-		tx, err := parseTransaction(t, payload)
+	case topicRawTxWithFee:
+		tx, err := parseTransaction(firstSeen, payload)
 		if err != nil {
 			return err
 		}
 		z.IncomingTx <- *tx
-	case TOPIC_RAWBLOCK:
-		block, err := parseBlock(t, payload)
+	case topicRawBlock:
+		block, err := parseBlock(firstSeen, payload)
 		if err != nil {
 			return err
 		}
@@ -105,56 +141,51 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 	return nil
 }
 
-// Listen for new messages, parse messages into native data types and put them into channels
-// `IncomingTx` and `IncomingBlocks`.
-// Returns error if something goes wrong and `nil` if stopped using `Stop()`
-func (z *ZMQSubscriber) Run() error {
-	defer func() {
-		if err := z.socket.Close(); err != nil {
-			log.Printf("[ZMQ] socket closed with error %q (ignored)", err)
-		}
-	}()
-
-	parseErrors := make(chan error)
-
-	// FIXME(#11):  Workaround for bug where zmq crashes when Close() is called from a different
-	// 				goroutine. Instead of permanently blocking on Recv(), we set a timeout and check
-	// 				for `z.cancel`.
-	for !z.cancel {
-		// if a parse error happened, exit the loop
-		select {
-		case err := <-parseErrors:
-			return err
-		default:
-		}
-
-		if err := z.socket.SetRcvtimeo(time.Second); err != nil {
-			return fmt.Errorf("error setting timeout: %s", err)
-		}
-
-		msg, err := z.socket.RecvMessageBytes(0)
-		if err != nil {
-			if err == zmq4.ETIMEDOUT || err == zmq4.Errno(syscall.EAGAIN) || err == zmq4.Errno(syscall.EINTR) {
-				continue
-			}
-
-			return fmt.Errorf("Could not receive ZMQ message: %s %v", err, err)
-		}
-
-		topic, payload := string(msg[0]), msg[1:]
-		log.Printf(`[ZMQ] received topic "%s"`, topic)
-
-		// process received messages asynchronously so that we do not stall the queue while parsing
-		go func() {
-			if err := z.processMessage(topic, payload); err != nil {
-				parseErrors <- err
-			}
-		}()
-	}
-
-	return nil
-}
-
+// Stop sets the cancel flag to true. The ZMQSubscriber is stopped after it
+// finishes receiving a message or reaches the timeout.
 func (z *ZMQSubscriber) Stop() {
 	z.cancel = true
+}
+
+func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction, error) {
+	if len(payload) != 2 {
+		return nil, fmt.Errorf("unexpected payload length: expected len(tx hash, sequence) == 2 but got len(payload) == %d", len(payload))
+	}
+
+	// payload[1] contains a 16bit LE sequence number provided by Bitcoin Core,
+	// which is not used here, but noted for completeness.
+	// rawtxwithfee is the rawtx by Bitcoin Core concatinated with the 8 byte BE
+	// transaction fee. This is a patch from the branch
+	// https://github.com/0xB10C/bitcoin/tree/2019-10-rawtxwithfee-zmq-publisher
+	rawtxwithfee, _ := payload[0], payload[1]
+
+	length := len(rawtxwithfee)
+	if length <= 8 {
+		return nil, errors.New("unexpected rawtxwithfee length")
+	}
+	rawtx, feeBytes := rawtxwithfee[:length-8], rawtxwithfee[length-8:]
+
+	wireTx := wire.NewMsgTx(wire.TxVersion)
+	if err := wireTx.Deserialize(bytes.NewReader(rawtx)); err != nil {
+		return nil, fmt.Errorf("could not deserialize the rawtx as wire.MsgTx: %s", err)
+	}
+
+	var txid types.Hash32
+	wireTxHash := wireTx.TxHash()
+	copy(txid[:], []byte(wireTxHash.CloneBytes()))
+
+	fee := binary.BigEndian.Uint64(feeBytes)
+	weight := wireTx.SerializeSizeStripped()*3 + wireTx.SerializeSize()
+
+	return &types.Transaction{
+		FirstSeen: firstSeen,
+		TxID:      txid,
+		Fee:       fee,
+		Weight:    weight,
+	}, nil
+}
+
+func parseBlock(firstSeen time.Time, msg [][]byte) (*types.Block, error) {
+	// TODO
+	return &types.Block{}, nil
 }
