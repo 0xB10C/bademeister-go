@@ -82,7 +82,8 @@ func TestZMQSubscriber(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate 101 blocks to have spendable UTXOs.
-	rpcClient.GenerateToAddress(101, addressMineTo)
+	_, err = rpcClient.GenerateToAddress(101, addressMineTo)
+	require.NoError(t, err)
 
 	addressSendTo, err := rpcClient.GetNewAddress("addressSendTo")
 	require.NoError(t, err)
