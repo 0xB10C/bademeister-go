@@ -2,6 +2,7 @@ package storage
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -11,10 +12,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The nanoseconds are truncated, because the precision is lost
+// when writing the firstSeen unix timestamp to database.
+// Not truncating would result in unequal transactions when
+// comparing with assert.Equal().
 var startTime = time.Now().UTC().Truncate(time.Second)
 
 func getTime(offsetSeconds int) time.Time {
 	return startTime.Add(time.Duration(offsetSeconds) * time.Second)
+}
+
+func newTxAtOffset(offsetSeconds int) *types.Transaction {
+	return &types.Transaction{
+		TxID:      generateHash32([]byte(fmt.Sprintf("tx-%d", offsetSeconds))),
+		FirstSeen: getTime(offsetSeconds),
+		Fee:       uint64(100 + offsetSeconds),
+		Weight:    100 + offsetSeconds,
+	}
 }
 
 func testQueryTransactions(t *testing.T, st *Storage, firstSeen time.Time, txs []types.Transaction) {
@@ -49,45 +63,37 @@ func testQueryTransactions(t *testing.T, st *Storage, firstSeen time.Time, txs [
 	}
 }
 
-// generateTestTxID returns the hash of a provided preimage.
-func generateTestTxID(preimage []byte) types.Hash32 {
+// generateHash32 returns the hash of a provided preimage.
+func generateHash32(preimage []byte) types.Hash32 {
 	return sha256.Sum256(preimage)
 }
 
-func TestStorage(t *testing.T) {
+func testStoragePath() string {
+	// The environment variable `TEST_INTEGRATION_DIR` is set to a temporary
+	// directory created by the Makefile in the target `test-integration`.
+	integrationTestDir := os.Getenv("TEST_INTEGRATION_DIR")
+	return integrationTestDir + "/mempool.db"
+}
+
+func newTestStorage() (*Storage, error) {
+	if err := os.Remove(testStoragePath()); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf(`could not reset mempool.db: %s`, err)
+	}
+
+	return NewStorage(testStoragePath())
+}
+
+func TestStorage_InsertTransaction(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
 	}
 
-	// The environment variable `TEST_INTEGRATION_DIR` is set to a temporary
-	// directory created by the Makefile in the target `test-integration`.
-	integrationTestDir := os.Getenv("TEST_INTEGRATION_DIR")
-	path := integrationTestDir + "/mempool.db"
-
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		t.Fatal(`could not reset mempool.db`)
-	}
-
-	st, err := NewStorage(path)
+	st, err := newTestStorage()
 	require.NoError(t, err)
 
-	// The nanoseconds are truncated, because the precision is lost
-	// when writing the firstSeen unix timestamp to database.
-	// Not truncating would result in unequal transactions when
-	// comparing with assert.Equal().
 	txs := []types.Transaction{
-		{
-			TxID:      generateTestTxID([]byte("tx 1")),
-			FirstSeen: getTime(0),
-			Fee:       232,
-			Weight:    489,
-		},
-		{
-			TxID:      generateTestTxID([]byte("tx 2")),
-			FirstSeen: getTime(10),
-			Fee:       1234567890,
-			Weight:    12345,
-		},
+		*newTxAtOffset(0),
+		*newTxAtOffset(10),
 	}
 
 	for _, tx := range txs {
@@ -99,7 +105,7 @@ func TestStorage(t *testing.T) {
 	err = st.Close()
 
 	// re-open, req-run query tests
-	st, err = NewStorage(path)
+	st, err = NewStorage(testStoragePath())
 	require.NoError(t, err)
 	defer st.Close()
 	testQueryTransactions(t, st, getTime(0), txs)
@@ -122,10 +128,54 @@ func TestStorage(t *testing.T) {
 		txEarlier.FirstSeen = txEarlier.FirstSeen.Add(-10 * time.Second)
 		err = st.InsertTransaction(&txEarlier)
 		require.NoError(t, err)
-		testQueryTransactions(t, st, tm, []types.Transaction{txEarlier, txs[1]})
+		testQueryTransactions(t, st, getTime(0), []types.Transaction{txEarlier, txs[1]})
 	}
 
 	count, err := st.TxCount()
 	assert.NoError(t, err)
 	assert.Equal(t, 2, count)
+}
+
+func TestStorage_InsertBlock(t *testing.T) {
+	st, err := newTestStorage()
+	require.NoError(t, err)
+
+	txs := []types.Transaction{
+		*newTxAtOffset(10),
+		*newTxAtOffset(20),
+	}
+
+	blocks := []types.Block{
+		{
+			Hash:         generateHash32([]byte("hash 1")),
+			FirstSeen:    getTime(0),
+			Transactions: []types.Transaction{txs[0]},
+			Height:       0,
+		},
+		{
+			Hash:         generateHash32([]byte("hash 2")),
+			FirstSeen:    getTime(10),
+			Transactions: []types.Transaction{txs[0], txs[1]},
+			Height:       1,
+		},
+	}
+
+	{
+		err = st.InsertBlock(&blocks[0])
+		require.NoError(t, err);
+		err = st.InsertBlock(&blocks[1])
+		require.NoError(t, err);
+	}
+
+	{
+		txIter, err := st.TransactionsInBlock(blocks[0].Hash)
+		require.NoError(t, err)
+		require.Equal(t, blocks[0].Transactions, txIter.Collect())
+	}
+
+	{
+		txIter, err := st.TransactionsInBlock(blocks[1].Hash)
+		require.NoError(t, err)
+		require.Equal(t, blocks[1].Transactions, txIter.Collect())
+	}
 }
