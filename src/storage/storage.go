@@ -58,7 +58,7 @@ func (s *Storage) initialize(version int) error {
 
 	const createConfigTable string = `
 		CREATE TABLE config (
-			version INT
+			version INTEGER
 		)`
 
 	if _, err := s.db.Exec(createConfigTable); err != nil {
@@ -73,17 +73,17 @@ func (s *Storage) initialize(version int) error {
 		return fmt.Errorf("could not fill the `config` table: %s", err)
 	}
 
-	const createMempoolTxTable string = `
-		CREATE TABLE mempool_tx (
-			txid 				BLOB 	UNIQUE NOT NULL,
-			first_seen 	INT,
-			fee 				INT,
-			weight 			INT
+	const createTransactionTable string = `
+		CREATE TABLE "transaction" (
+			txid        BLOB UNIQUE NOT NULL,
+			first_seen  INTEGER,
+			fee         INTEGER,
+			weight      INTEGER
 		)
 	`
 
-	if _, err := s.db.Exec(createMempoolTxTable); err != nil {
-		return fmt.Errorf("could not create the `mempool_tx` table: %s", err)
+	if _, err := s.db.Exec(createTransactionTable); err != nil {
+		return fmt.Errorf("could not create the table `transaction`: %s", err)
 	}
 
 	return nil
@@ -101,9 +101,9 @@ func (s *Storage) getVersion() (version int) {
 }
 
 func (s *Storage) TxCount() (count int, err error) {
-	row := s.db.QueryRow(`SELECT COUNT(txid) FROM mempool_tx`)
+	row := s.db.QueryRow(`SELECT COUNT(txid) FROM "transaction"`)
 	if err := row.Scan(&count); err != nil {
-		return 0, fmt.Errorf("could not get count from table `mempool_tx`: %s", err)
+		return 0, fmt.Errorf("could not get count from table `transaction`: %s", err)
 	}
 	return
 }
@@ -121,7 +121,7 @@ func (s *Storage) migrate(fromVersion int) error {
 
 func (s *Storage) InsertTransaction(tx *types.Transaction) error {
 	const insertTransaction string = `
-	INSERT INTO mempool_tx (txid, first_seen, fee, weight) VALUES(?, ?, ?, ?)
+	INSERT INTO "transaction" (txid, first_seen, fee, weight) VALUES(?, ?, ?, ?)
 	ON CONFLICT(txid) DO
 		UPDATE SET
 			first_seen = excluded.first_seen
@@ -134,7 +134,7 @@ func (s *Storage) InsertTransaction(tx *types.Transaction) error {
 	// https://www.sqlite.org/lang_UPSERT.html
 	_, err := s.db.Exec(insertTransaction, tx.TxID[:], tx.FirstSeen.UTC().Unix(), tx.Fee, tx.Weight)
 	if err != nil {
-		return fmt.Errorf("could not insert a transaction into table `mempool_tx`: %s", err)
+		return fmt.Errorf("could not insert a transaction into table `transaction`: %s", err)
 	}
 	return nil
 }
@@ -178,7 +178,7 @@ func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	var rows *sql.Rows
 	var err error
 
-	baseQuery := `SELECT txid, first_seen, fee, weight FROM mempool_tx`
+	baseQuery := `SELECT txid, first_seen, fee, weight FROM "transaction"`
 
 	if q.FirstSeen == nil {
 		rows, err = s.db.Query(baseQuery)
