@@ -58,6 +58,10 @@ func TestStorage(t *testing.T) {
 	integrationTestDir := os.Getenv("TEST_INTEGRATION_DIR")
 	path := integrationTestDir + "/mempool.db"
 
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		t.Fatal(`could not reset mempool.db`)
+	}
+
 	st, err := NewStorage(path)
 	require.NoError(t, err)
 
