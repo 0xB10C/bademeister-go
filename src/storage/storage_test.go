@@ -11,6 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var startTime = time.Now().UTC().Truncate(time.Second)
+
+func getTime(offsetSeconds int) time.Time {
+	return startTime.Add(time.Duration(offsetSeconds) * time.Second)
+}
+
 func testQueryTransactions(t *testing.T, st *Storage, firstSeen time.Time, txs []types.Transaction) {
 	// test query all txs
 	{
@@ -69,17 +75,16 @@ func TestStorage(t *testing.T) {
 	// when writing the firstSeen unix timestamp to database.
 	// Not truncating would result in unequal transactions when
 	// comparing with assert.Equal().
-	tm := time.Now().UTC().Truncate(time.Second)
 	txs := []types.Transaction{
 		{
 			TxID:      generateTestTxID([]byte("tx 1")),
-			FirstSeen: tm,
+			FirstSeen: getTime(0),
 			Fee:       232,
 			Weight:    489,
 		},
 		{
 			TxID:      generateTestTxID([]byte("tx 2")),
-			FirstSeen: tm.Add(10 * time.Second),
+			FirstSeen: getTime(10),
 			Fee:       1234567890,
 			Weight:    12345,
 		},
@@ -90,26 +95,26 @@ func TestStorage(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testQueryTransactions(t, st, tm, txs)
+	testQueryTransactions(t, st, getTime(0), txs)
 	err = st.Close()
 
 	// re-open, req-run query tests
 	st, err = NewStorage(path)
 	require.NoError(t, err)
 	defer st.Close()
-	testQueryTransactions(t, st, tm, txs)
+	testQueryTransactions(t, st, getTime(0), txs)
 
 	// repeated insertion with same txid upserts iff FirstSeen is lower
 	{
 		err = st.InsertTransaction(&txs[0])
 		require.NoError(t, err)
-		testQueryTransactions(t, st, tm, txs)
+		testQueryTransactions(t, st, getTime(0), txs)
 
 		txLater := txs[0]
 		txLater.FirstSeen = txLater.FirstSeen.Add(10 * time.Second)
 		err = st.InsertTransaction(&txLater)
 		require.NoError(t, err)
-		testQueryTransactions(t, st, tm, txs)
+		testQueryTransactions(t, st, getTime(0), txs)
 	}
 
 	{
