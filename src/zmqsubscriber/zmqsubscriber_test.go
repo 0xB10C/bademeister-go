@@ -1,7 +1,8 @@
 package zmqsubscriber
 
 import (
-	"fmt"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"log"
 	"os"
 	"testing"
@@ -48,7 +49,7 @@ func waitForZMQBlock(t *testing.T, z *ZMQSubscriber, timeout time.Duration) *typ
 func setupAndRunZMQSubscriber(t *testing.T, zmqHost string, zmqPort string) (*ZMQSubscriber, error) {
 	z, err := NewZMQSubscriber(zmqHost, zmqPort)
 	if err != nil {
-		return nil, fmt.Errorf("could not create a new ZMQ Subscriber: %s", err)
+		return nil, errors.Wrap(err, "could not create a new ZMQ Subscriber")
 	}
 
 	go func() {
@@ -82,7 +83,8 @@ func TestZMQSubscriber(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate 101 blocks to have spendable UTXOs.
-	rpcClient.GenerateToAddress(101, addressMineTo)
+	_, err = rpcClient.GenerateToAddress(101, addressMineTo)
+	require.NoError(t, err)
 
 	addressSendTo, err := rpcClient.GetNewAddress("addressSendTo")
 	require.NoError(t, err)
@@ -91,13 +93,29 @@ func TestZMQSubscriber(t *testing.T) {
 	require.NoError(t, err)
 	defer z.Stop()
 
-	_, err = rpcClient.GenerateToAddress(1, addressMineTo)
-	require.NoError(t, err)
-	require.NotNil(t, waitForZMQBlock(t, z, zmqWaitTimeout))
+	{
+		hashes, err := rpcClient.GenerateToAddress(1, addressMineTo)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(hashes))
+		block1 := waitForZMQBlock(t, z, zmqWaitTimeout)
+		require.NotNil(t, block1)
+		assert.Equal(t, hashes[0][:], block1.Hash[:])
+		assert.Greater(t, int(block1.Height), 100)
+		assert.Equal(t, 1, len(block1.TxIDs))
+
+		_, err = rpcClient.GenerateToAddress(1, addressMineTo)
+		require.NoError(t, err)
+		block2 := waitForZMQBlock(t, z, zmqWaitTimeout)
+		assert.Equal(t, block1.Height+1, block2.Height)
+		assert.Equal(t, block1.Hash, block2.Parent)
+	}
 
 	_, err = rpcClient.SendSimpleTransaction(addressSendTo)
+	tx := waitForZMQTransaction(t, z, zmqWaitTimeout)
+	require.Greater(t, 300, int(tx.Fee))
+	require.Less(t, 100, int(tx.Fee))
 	require.NoError(t, err)
-	require.NotNil(t, waitForZMQTransaction(t, z, zmqWaitTimeout))
+	require.NotNil(t, tx)
 
 	_, err = rpcClient.GenerateToAddress(1, addressMineTo)
 	require.NoError(t, err)

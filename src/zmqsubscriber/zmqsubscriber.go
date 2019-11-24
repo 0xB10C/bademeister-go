@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/btcsuite/btcd/blockchain"
+	"github.com/btcsuite/btcd/txscript"
 	"log"
 	"syscall"
 	"time"
@@ -170,11 +172,9 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 		return nil, fmt.Errorf("could not deserialize the rawtx as wire.MsgTx: %s", err)
 	}
 
-	var txid types.Hash32
-	wireTxHash := wireTx.TxHash()
-	copy(txid[:], []byte(wireTxHash.CloneBytes()))
+	txid := types.NewHashFromArray(wireTx.TxHash())
 
-	fee := binary.BigEndian.Uint64(feeBytes)
+	fee := binary.LittleEndian.Uint64(feeBytes)
 	weight := wireTx.SerializeSizeStripped()*3 + wireTx.SerializeSize()
 
 	return &types.Transaction{
@@ -186,6 +186,56 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 }
 
 func parseBlock(firstSeen time.Time, msg [][]byte) (*types.Block, error) {
-	// TODO
-	return &types.Block{}, nil
+	rawblock, ctr := msg[0], msg[1]
+	_ = ctr
+
+	reader := bytes.NewReader(rawblock)
+
+	var wireBlock wire.MsgBlock
+	err := wireBlock.BtcDecode(reader, 0, wire.LatestEncoding)
+	if err != nil {
+		return nil, fmt.Errorf("error during BtcDecode: %s", err)
+	}
+
+	// https://bitcoin.org/en/developer-reference#coinbase
+	parseHeight := func(txin wire.TxIn) (int, error) {
+		data, err := txscript.PushedData(txin.SignatureScript)
+		if err != nil {
+			return -1, err
+		}
+		if len(data) != 2 {
+			return -1, fmt.Errorf("unexpected count %d", len(data))
+		}
+		heightLE := data[0][:]
+		for len(heightLE) < 4 {
+			heightLE = append(heightLE, 0)
+		}
+		height := binary.LittleEndian.Uint32(heightLE)
+		return int(height), nil
+	}
+
+	height := -1
+	txHashes := []types.Hash32{}
+	for _, t := range wireBlock.Transactions {
+		if blockchain.IsCoinBaseTx(t) {
+			height, err = parseHeight(*t.TxIn[0])
+			if err != nil {
+				return nil, fmt.Errorf("error parsing coinbase: %s", err)
+			}
+		}
+		txHashes = append(txHashes, types.NewHashFromArray(t.TxHash()))
+	}
+
+	if height < 0 {
+		return nil, fmt.Errorf("height not found")
+	}
+
+	return &types.Block{
+		FirstSeen:   firstSeen,
+		EncodedTime: wireBlock.Header.Timestamp,
+		Hash:        types.NewHashFromArray(wireBlock.BlockHash()),
+		Parent:      types.NewHashFromArray(wireBlock.Header.PrevBlock),
+		TxIDs:       txHashes,
+		Height:      uint32(height),
+	}, nil
 }
