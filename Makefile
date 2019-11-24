@@ -48,22 +48,13 @@ go-vet:
 test: test-unit test-integration
 test-unit:
 				$(GOTEST) -v -short ./...
-test-integration:
-				@echo ""
-				$(eval TEST_INTEGRATION_DIR := $(shell mktemp -d -t bademeister-test-XXXXXX))
-				@echo "Using TEST_INTEGRATION_DIR = $(TEST_INTEGRATION_DIR)"
-
-				function removeTmpDir {
-					echo "removing $(TEST_INTEGRATION_DIR)"
-					rm -rf $(TEST_INTEGRATION_DIR)
-				}
-
+test-bitcoind-start:
 				@echo "starting bitcoind docker"
 				docker run --rm -it \
 					--name ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME} \
-					-p ${TEST_INTEGRATION_RPC_PORT}:${TEST_INTEGRATION_RPC_PORT} \
-					-p ${TEST_INTEGRATION_ZMQ_PORT}:${TEST_INTEGRATION_ZMQ_PORT} \
-					-d \
+					--publish ${TEST_INTEGRATION_RPC_PORT}:${TEST_INTEGRATION_RPC_PORT} \
+					--publish ${TEST_INTEGRATION_ZMQ_PORT}:${TEST_INTEGRATION_ZMQ_PORT} \
+					--detach \
 					b10c/bitcoind-patched-zmq:${TEST_INTEGRATION_DOCKER_IMAGE_TAG} \
 						-server=1 \
 						-regtest=1 \
@@ -76,15 +67,21 @@ test-integration:
 						-zmqpubrawtxwithfee="tcp://${TEST_INTEGRATION_ZMQ_HOST}:${TEST_INTEGRATION_ZMQ_PORT}" \
 						-fallbackfee=0.00001 \
 						-debug=rpc
-
-				function stop_bitcoind {
-					@echo "bitcoind shutdown initiated..."
-					@docker kill ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME}
-					@echo "bitcoind stopped"
-					removeTmpDir
+test-bitcoind-stop:
+				@echo "bitcoind shutdown initiated..."
+				@docker kill ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME}
+				@echo "bitcoind stopped"
+test-integration:
+				@echo ""
+				$(eval TEST_INTEGRATION_DIR := $(shell mktemp -d -t bademeister-test-XXXXXX))
+				@echo "Using TEST_INTEGRATION_DIR = $(TEST_INTEGRATION_DIR)"
+				make test-bitcoind-start TEST_INTEGRATION_DIR=$(TEST_INTEGRATION_DIR)
+				function cleanup {
+					make test-bitcoind-stop TEST_INTEGRATION_DIR=$(TEST_INTEGRATION_DIR)
+					echo "removing $(TEST_INTEGRATION_DIR)"
+					rm -rf $(TEST_INTEGRATION_DIR)
 				}
-
-				trap stop_bitcoind EXIT
+				trap cleanup EXIT
 
 				@echo "running integration tests"
 				TEST_INTEGRATION_DIR=${TEST_INTEGRATION_DIR} \
