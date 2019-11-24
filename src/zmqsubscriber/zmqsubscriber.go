@@ -154,7 +154,7 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 
 	// payload[1] contains a 16bit LE sequence number provided by Bitcoin Core,
 	// which is not used here, but noted for completeness.
-	// rawtxwithfee is the rawtx by Bitcoin Core concatinated with the 8 byte BE
+	// rawtxwithfee is the rawtx by Bitcoin Core concatinated with the 8 byte LE
 	// transaction fee. This is a patch from the branch
 	// https://github.com/0xB10C/bitcoin/tree/2019-10-rawtxwithfee-zmq-publisher
 	rawtxwithfee, _ := payload[0], payload[1]
@@ -174,7 +174,7 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 	wireTxHash := wireTx.TxHash()
 	copy(txid[:], []byte(wireTxHash.CloneBytes()))
 
-	fee := binary.BigEndian.Uint64(feeBytes)
+	fee := binary.LittleEndian.Uint64(feeBytes)
 	weight := wireTx.SerializeSizeStripped()*3 + wireTx.SerializeSize()
 
 	return &types.Transaction{

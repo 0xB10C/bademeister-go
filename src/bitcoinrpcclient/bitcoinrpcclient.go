@@ -62,7 +62,7 @@ func (rpcClient *BitcoinRPCClient) waitTillRPCServerReady(timeout time.Duration)
 			return nil
 		}
 	}
-	return fmt.Errorf("timedout after %s while waiting for the Bitcoin Core RPC Server to be ready", timeout)
+	return fmt.Errorf("timed out after %s while waiting for the Bitcoin Core RPC Server to be ready", timeout)
 }
 
 // GenerateToAddress mines `nBlocks` to the passed address and returns the block
