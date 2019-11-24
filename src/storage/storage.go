@@ -3,12 +3,11 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/pkg/errors"
 	"log"
 	"os"
-	"time"
-
-	"github.com/0xb10c/bademeister-go/src/types"
-	_ "github.com/mattn/go-sqlite3"
+	"strings"
 )
 
 const currentVersion = 4
@@ -17,6 +16,50 @@ const currentVersion = 4
 type Storage struct {
 	db *sql.DB
 }
+
+type Query interface {
+	Where() string
+	Order() string
+	Limit() int
+}
+
+type StaticQuery struct {
+	where string
+	order string
+	limit int
+}
+
+func (q StaticQuery) Where() string {
+	return q.where
+}
+
+func (q StaticQuery) Order() string {
+	return q.order
+}
+
+func (q StaticQuery) Limit() int {
+	return q.limit
+}
+
+func formatQuery(fields []string, table string, q Query) string {
+	query := fmt.Sprintf(`SELECT %s FROM "%s"`, strings.Join(fields, ","), table)
+
+	if q.Where() != "" {
+		query = fmt.Sprintf("%s WHERE %s", query, q.Where())
+	}
+
+	if q.Order() != "" {
+		query = fmt.Sprintf("%s ORDER BY %s", query, q.Order())
+	}
+
+	if q.Limit() > 0 {
+		query = fmt.Sprintf("%s LIMIT %d", query, q.Limit())
+	}
+
+	return query
+}
+
+
 
 // reference: https://github.com/mattn/go-sqlite3/blob/master/_example/simple/simple.go
 func NewStorage(path string) (*Storage, error) {
@@ -40,11 +83,11 @@ func NewStorage(path string) (*Storage, error) {
 
 	if init {
 		if err := s.initialize(currentVersion); err != nil {
-			return nil, fmt.Errorf("could not initialize the database: %s", err)
+			return nil, errors.Wrapf(err, "could not initialize the database at path %s", path)
 		}
 	} else {
 		if err := s.migrate(s.getVersion()); err != nil {
-			return nil, fmt.Errorf("could not migrate the database: %s", err)
+			return nil, errors.Errorf("could not migrate the database: %s", err)
 		}
 	}
 
@@ -58,11 +101,11 @@ func (s *Storage) initialize(version int) error {
 
 	const createConfigTable string = `
 		CREATE TABLE config (
-			version INT
+			version INTEGER
 		)`
 
 	if _, err := s.db.Exec(createConfigTable); err != nil {
-		return fmt.Errorf("could not create the `config` table: %s", err)
+		return errors.Errorf("could not create the `config` table: %s", err)
 	}
 
 	const fillConfigTable string = `
@@ -70,20 +113,22 @@ func (s *Storage) initialize(version int) error {
 	`
 
 	if _, err := s.db.Exec(fillConfigTable, version); err != nil {
-		return fmt.Errorf("could not fill the `config` table: %s", err)
+		return errors.Errorf("could not fill the `config` table: %s", err)
 	}
 
-	const createMempoolTxTable string = `
-		CREATE TABLE mempool_tx (
-			txid 				BLOB 	UNIQUE NOT NULL,
-			first_seen 	INT,
-			fee 				INT,
-			weight 			INT
+	const createTransactionTable string = `
+		CREATE TABLE "transaction" (
+			id             INTEGER PRIMARY KEY UNIQUE NOT NULL,
+			txid           BLOB UNIQUE NOT NULL,
+			first_seen     INTEGER,
+			last_removed   INTEGER,
+			fee            INTEGER,
+			weight         INTEGER
 		)
 	`
 
-	if _, err := s.db.Exec(createMempoolTxTable); err != nil {
-		return fmt.Errorf("could not create the `mempool_tx` table: %s", err)
+	if _, err := s.db.Exec(createTransactionTable); err != nil {
+		return errors.Errorf("could not create the table `transaction`: %s", err)
 	}
 
 	return nil
@@ -92,7 +137,7 @@ func (s *Storage) initialize(version int) error {
 func (s *Storage) getVersion() (version int) {
 	row := s.db.QueryRow(`SELECT version FROM config`)
 	if row == nil {
-		panic(fmt.Errorf("could not query version"))
+		panic(errors.Errorf("could not query version"))
 	}
 	if err := row.Scan(&version); err != nil {
 		panic(err)
@@ -101,9 +146,9 @@ func (s *Storage) getVersion() (version int) {
 }
 
 func (s *Storage) TxCount() (count int, err error) {
-	row := s.db.QueryRow(`SELECT COUNT(txid) FROM mempool_tx`)
+	row := s.db.QueryRow(`SELECT COUNT(txid) FROM "transaction"`)
 	if err := row.Scan(&count); err != nil {
-		return 0, fmt.Errorf("could not get count from table `mempool_tx`: %s", err)
+		return 0, errors.Errorf("could not get count from table `transaction`: %s", err)
 	}
 	return
 }
@@ -116,84 +161,7 @@ func (s *Storage) migrate(fromVersion int) error {
 
 	// TODO: implement
 
-	return fmt.Errorf("cannot migrate from version %d", fromVersion)
-}
-
-func (s *Storage) InsertTransaction(tx *types.Transaction) error {
-	const insertTransaction string = `
-	INSERT INTO mempool_tx (txid, first_seen, fee, weight) VALUES(?, ?, ?, ?)
-	ON CONFLICT(txid) DO
-		UPDATE SET
-			first_seen = excluded.first_seen
-		WHERE
-			first_seen > excluded.first_seen
-	`
-
-	// The firstSeen timestamp might not be to be monotonic, since transactions
-	// can be inserted from multiple sources (ZMQ and getrawmempool RPC).
-	// https://www.sqlite.org/lang_UPSERT.html
-	_, err := s.db.Exec(insertTransaction, tx.TxID[:], tx.FirstSeen.UTC().Unix(), tx.Fee, tx.Weight)
-	if err != nil {
-		return fmt.Errorf("could not insert a transaction into table `mempool_tx`: %s", err)
-	}
-	return nil
-}
-
-type Query struct {
-	FirstSeen *time.Time
-}
-
-type TxIterator struct {
-	rows *sql.Rows
-}
-
-func (i *TxIterator) Next() *types.Transaction {
-	if !i.rows.Next() {
-		return nil
-	}
-
-	var txidBytes []byte
-	var firstSeen int64
-	var fee uint64
-	var weight int
-	if err := i.rows.Scan(&txidBytes, &firstSeen, &fee, &weight); err != nil {
-		panic(err)
-	}
-
-	var txid types.Hash32
-	copy(txid[:], txidBytes)
-	return &types.Transaction{
-		TxID:      txid,
-		FirstSeen: time.Unix(firstSeen, 0).UTC(),
-		Fee:       fee,
-		Weight:    weight,
-	}
-}
-
-func (i *TxIterator) Close() error {
-	return i.rows.Close()
-}
-
-func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
-	var rows *sql.Rows
-	var err error
-
-	baseQuery := `SELECT txid, first_seen, fee, weight FROM mempool_tx`
-
-	if q.FirstSeen == nil {
-		rows, err = s.db.Query(baseQuery)
-	} else {
-		rows, err = s.db.Query(
-			fmt.Sprintf("%s where first_seen > ?", baseQuery),
-			q.FirstSeen.Unix(),
-		)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &TxIterator{rows}, nil
+	return errors.Errorf("cannot migrate from version %d", fromVersion)
 }
 
 func (s *Storage) Close() error {

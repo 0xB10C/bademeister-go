@@ -170,9 +170,7 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 		return nil, fmt.Errorf("could not deserialize the rawtx as wire.MsgTx: %s", err)
 	}
 
-	var txid types.Hash32
-	wireTxHash := wireTx.TxHash()
-	copy(txid[:], []byte(wireTxHash.CloneBytes()))
+	txid := types.NewHashFromArray(wireTx.TxHash())
 
 	fee := binary.LittleEndian.Uint64(feeBytes)
 	weight := wireTx.SerializeSizeStripped()*3 + wireTx.SerializeSize()
