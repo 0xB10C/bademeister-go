@@ -19,7 +19,16 @@ type BitcoinRPCClient struct {
 // NewBitcoinRPCClient returns a new Bitcoin Core RPC Client. This functions
 // waits for a maximum of 10 seconds for the corresponding RPC server to be
 // ready. Otherwise it returns a timeout.
-func NewBitcoinRPCClient(rpcUser string, rpcPass, rpcHost string, rpcPort string) (*BitcoinRPCClient, error) {
+func NewBitcoinRPCClient(rpcUser, rpcPass, rpcHost, rpcPort string) (*BitcoinRPCClient, error) {
+	if len(rpcPass) == 0 {
+		return nil, fmt.Errorf("rpcPass is empty")
+	}
+	if len(rpcUser) == 0 || len(rpcHost) == 0 || len(rpcPort) == 0 {
+		return nil, fmt.Errorf(
+			"received empty parameter (rpcUser=%q rpcPass=(hidden) rpcHost=%q rpcPort=%q)",
+			rpcUser, rpcHost, rpcPort,
+		)
+	}
 
 	cfg := &rpcclient.ConnConfig{
 		Host:         rpcHost + ":" + rpcPort,
