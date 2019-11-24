@@ -2,6 +2,7 @@ package zmqsubscriber
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"log"
 	"os"
 	"testing"
@@ -96,8 +97,11 @@ func TestZMQSubscriber(t *testing.T) {
 	require.NotNil(t, waitForZMQBlock(t, z, zmqWaitTimeout))
 
 	_, err = rpcClient.SendSimpleTransaction(addressSendTo)
+	tx := waitForZMQTransaction(t, z, zmqWaitTimeout)
 	require.NoError(t, err)
-	require.NotNil(t, waitForZMQTransaction(t, z, zmqWaitTimeout))
+	require.NotNil(t, tx)
+	assert.InDelta(t, 250, int(tx.Fee), 250)
+	assert.InDelta(t, 500, int(tx.Weight), 500)
 
 	_, err = rpcClient.GenerateToAddress(1, addressMineTo)
 	require.NoError(t, err)
