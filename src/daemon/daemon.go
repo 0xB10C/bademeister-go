@@ -33,7 +33,8 @@ func NewBademeisterDaemon(host, port, dbPath string) (*BademeisterDaemon, error)
 
 func (b *BademeisterDaemon) processTransaction(tx *types.Transaction) error {
 	log.Printf("Received transaction, adding to storage")
-	return b.storage.InsertTransaction(tx)
+	_, err := b.storage.InsertTransaction(tx)
+	return err
 }
 
 func (b *BademeisterDaemon) processBlock(block *types.Block) error {
@@ -65,12 +66,12 @@ func (b *BademeisterDaemon) Run() error {
 			return zmqSubErr
 		case tx := <-b.zmqSub.IncomingTx:
 			if err := b.processTransaction(&tx); err != nil {
-				log.Printf("Error in processTransaction()")
+				log.Printf("Error in processTransaction(): %s", err)
 				return err
 			}
 		case block := <-b.zmqSub.IncomingBlocks:
 			if err := b.processBlock(&block); err != nil {
-				log.Printf("Error in processBlock()")
+				log.Printf("Error in processBlock(): %s", err)
 				return err
 			}
 		}
