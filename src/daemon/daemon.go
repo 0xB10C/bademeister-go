@@ -38,9 +38,9 @@ func (b *BademeisterDaemon) processTransaction(tx *types.Transaction) error {
 }
 
 func (b *BademeisterDaemon) processBlock(block *types.Block) error {
-	log.Printf("Received block, updating transactions")
-	// TODO update storage
-	return nil
+	log.Printf("Received block, updating database")
+	_, err := b.storage.InsertBlock(block)
+	return err
 }
 
 func (b *BademeisterDaemon) dumpStats() {

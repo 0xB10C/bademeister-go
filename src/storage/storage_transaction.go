@@ -180,6 +180,28 @@ func (s *Storage) transactionDBIDs(txids []types.Hash32) (*[]int64, error) {
 	return &res, nil
 }
 
+func (s *Storage) TransactionsInBlock(blockId int64) (*TxIterator, error) {
+	rows, err := s.db.Query(`
+		SELECT
+			id, txid, first_seen, last_removed, fee, weight
+		FROM
+			"transaction"
+		WHERE
+			id IN (
+				SELECT
+					transaction_id
+				FROM
+					"transaction_block"
+				WHERE
+					block_id = ?
+			)`, blockId)
+	if err != nil {
+		return nil, errors.Errorf("error querying transactions: %s", err)
+	}
+
+	return &TxIterator{rows}, nil
+}
+
 func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	var rows *sql.Rows
 	var err error
@@ -212,7 +234,10 @@ func (s *Storage) TransactionById(txid types.Hash32) (*types.StoredTransaction, 
 func (s *Storage) NextTransactions(t time.Time, dbid int64, limit int) (*TxIterator, error) {
 	return s.QueryTransactions(StaticQuery{
 		// since there can be multiple txs with the same timestamp, we must use the dbid to query as well
-		where: fmt.Sprintf("(first_seen >= %d) AND (id > %d)", t.Unix(), dbid),
+		where: fmt.Sprintf(
+			"(first_seen > %d) OR ((first_seen == %d) AND (id > %d))",
+			t.Unix(), t.Unix(), dbid,
+		),
 		order: "first_seen ASC, id ASC",
 		limit: limit,
 	})

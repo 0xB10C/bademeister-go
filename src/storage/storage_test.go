@@ -47,3 +47,86 @@ func NewTestStorage() (*Storage, error) {
 
 	return NewStorage(StoragePath())
 }
+
+type TestChain struct {
+	transactions []types.Transaction
+	blocks       []types.Block
+}
+
+func txidsFromStrings(names ...string) (res []types.Hash32) {
+	for _, n := range names {
+		res = append(res, GenerateHash32(n))
+	}
+	return
+}
+
+func NewTestChainReorg() TestChain {
+	txs := []types.Transaction{
+		*NewTxAtOffset(10),
+		*NewTxAtOffset(20),
+		*NewTxAtOffset(30),
+
+		*NewTxAtOffset(100),
+		*NewTxAtOffset(110),
+		*NewTxAtOffset(120),
+
+		*NewTxAtOffset(200),
+		*NewTxAtOffset(210),
+		*NewTxAtOffset(220),
+	}
+
+	blocks := []types.Block{
+		{
+			Hash:      GenerateHash32("1"),
+			FirstSeen: GetTime(100),
+			TxIDs:     txidsFromStrings("tx-10"),
+			IsBest:    true,
+			Height:    0,
+		},
+
+		// this block will be reorged
+		{
+			Parent:    GenerateHash32("1"),
+			Hash:      GenerateHash32("2"),
+			FirstSeen: GetTime(200),
+			TxIDs:     txidsFromStrings("tx-20", "tx-100"),
+			IsBest:    true,
+			Height:    1,
+		},
+
+		// this block will be reorged
+		{
+			Parent:    GenerateHash32("2"),
+			Hash:      GenerateHash32("3"),
+			FirstSeen: GetTime(300),
+			TxIDs:     txidsFromStrings("tx-30", "tx-110"),
+			IsBest:    true,
+			Height:    2,
+		},
+
+		// Minority chain - since `IsBest=false` this does not affect `last_removed` yet
+		{
+			Parent:    GenerateHash32("1"),
+			Hash:      GenerateHash32("1.1"),
+			FirstSeen: GetTime(400),
+			TxIDs:     txidsFromStrings("tx-20", "tx-200"),
+			IsBest:    false,
+			Height:    1,
+		},
+
+		// Adding this block will reorg the chain (`IsBest=true` and parent is not current best)
+		{
+			Parent:    GenerateHash32("1.1"),
+			Hash:      GenerateHash32("1.2"),
+			FirstSeen: GetTime(500),
+			TxIDs:     txidsFromStrings("tx-30", "tx-210"),
+			IsBest:    true,
+			Height:    2,
+		},
+	}
+
+	return TestChain{
+		transactions: txs,
+		blocks:       blocks,
+	}
+}
