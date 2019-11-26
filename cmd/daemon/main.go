@@ -33,12 +33,12 @@ func main() {
 
 	errRun := d.Run()
 	if errRun != nil {
-		log.Printf("Error during operation, shutting down: %s", err)
+		log.Printf("Error during operation, shutting down: %s", errRun)
 	}
 
 	errClose := d.Close()
 	if errClose != nil {
-		log.Printf("Error during shutdown: %s", err)
+		log.Printf("Error during shutdown: %s", errClose)
 	}
 
 	if errRun != nil || errClose != nil {
