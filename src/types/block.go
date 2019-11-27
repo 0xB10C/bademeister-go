@@ -21,7 +21,7 @@ type Block struct {
 }
 
 // https://bitcoin.org/en/developer-reference#coinbase
-func parseHeight(txin wire.TxIn) (int, error) {
+func parseHeight(txin wire.TxIn) int {
 	// taken from https://github.com/0xB10C/memo/blob/39c5c5/memod/processor/zmq_handler.go#L54-L76
 
 	// To get the block height we look into the coinbase transaction
@@ -42,7 +42,7 @@ func parseHeight(txin wire.TxIn) (int, error) {
 		heightLittleEndian = append(heightLittleEndian, 0)
 	}
 
-	return int(binary.LittleEndian.Uint32(heightLittleEndian)), nil
+	return int(binary.LittleEndian.Uint32(heightLittleEndian))
 }
 
 func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
@@ -59,10 +59,7 @@ func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
 
 	for _, t := range wireBlock.Transactions {
 		if blockchain.IsCoinBaseTx(t) {
-			height, err = parseHeight(*t.TxIn[0])
-			if err != nil {
-				return nil, fmt.Errorf("error parsing coinbase: %s", err)
-			}
+			height = parseHeight(*t.TxIn[0])
 		}
 		txHashes = append(txHashes, NewHashFromArray(t.TxHash()))
 	}

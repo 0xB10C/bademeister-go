@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const currentVersion = 4
+const currentVersion = 5
 
 func LogReorg(lastBest, newBest, commonAncestor *types.StoredBlock) {
 	log.Printf(

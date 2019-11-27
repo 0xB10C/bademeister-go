@@ -34,7 +34,6 @@ func TestParseHeight(t *testing.T) {
 	err := tx.Deserialize(buf)
 	require.NoError(t, err)
 
-	height, err := parseHeight(*tx.TxIn[0])
-	require.NoError(t, err)
+	height := parseHeight(*tx.TxIn[0])
 	require.Equal(t, height, 605453)
 }
