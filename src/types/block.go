@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"time"
+
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/wire"
-	"time"
 )
 
 type Block struct {
@@ -45,6 +46,7 @@ func parseHeight(txin wire.TxIn) int {
 	return int(binary.LittleEndian.Uint32(heightLittleEndian))
 }
 
+// Create new Block from serialized bytes
 func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
 	reader := bytes.NewReader(rawblock)
 
@@ -83,7 +85,9 @@ func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
 	}, nil
 }
 
+// Extends Block with Database ID
 type StoredBlock struct {
+	// Internal database ID
 	DBID int64
 	Block
 }

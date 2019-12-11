@@ -9,9 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/btcsuite/btcd/blockchain"
-	"github.com/btcsuite/btcd/txscript"
-
 	"github.com/btcsuite/btcd/wire"
 
 	"github.com/0xb10c/bademeister-go/src/types"
@@ -21,7 +18,9 @@ import (
 
 // ZMQSubscriber represents a ZMQ subscriber for the Bitcoin Core ZMQ interface
 type ZMQSubscriber struct {
-	IncomingTx     chan types.Transaction
+	// Deserialized transactions
+	IncomingTx chan types.Transaction
+	// Deserialized blocks
 	IncomingBlocks chan types.Block
 	topics         []string
 	socket         *zmq4.Socket

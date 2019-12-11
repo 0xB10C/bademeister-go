@@ -10,23 +10,29 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Error returned if transactions confirmed by a block are not found
 type ErrorLookupTransactionDBIDs struct {
 	MissingTxs []types.Hash32
 	Total      int
 }
 
+// Return error string
 func (e *ErrorLookupTransactionDBIDs) Error() string {
 	return fmt.Sprintf("could not find %d of %d transactions", len(e.MissingTxs), e.Total)
 }
 
+// Return true iff err is of type ErrorLookupTransactionDBIDs
 func IsErrorMissingTransactions(err error) bool {
 	_, ok := err.(*ErrorLookupTransactionDBIDs)
 	return ok
 }
 
+// Implements Query interface.
 type TransactionQueryByTime struct {
+	// Upper limit (inclusive) of transaction first_seen time
 	FirstSeenBeforeOrAt *time.Time
-	LastRemovedAfter    *time.Time
+	// Lower limit (exclusive) for last_removed time
+	LastRemovedAfter *time.Time
 }
 
 func (r TransactionQueryByTime) Where() string {
@@ -45,18 +51,22 @@ func (r TransactionQueryByTime) Where() string {
 	return strings.Join(clause, " AND ")
 }
 
+// Empty by default
 func (q TransactionQueryByTime) Order() string {
 	return ""
 }
 
+// Empty by default
 func (q TransactionQueryByTime) Limit() int {
 	return 0
 }
 
+// Helper for fetching transactions row-by-row
 type TxIterator struct {
 	rows *sql.Rows
 }
 
+// Retrieve next transaction
 func (i *TxIterator) Next() *types.StoredTransaction {
 	if !i.rows.Next() {
 		return nil
@@ -89,6 +99,12 @@ func (i *TxIterator) Next() *types.StoredTransaction {
 	return &tx
 }
 
+// Close underlying cursor
+func (i *TxIterator) Close() error {
+	return i.rows.Close()
+}
+
+// Return remaining transactions as list and close cursor
 func (i TxIterator) Collect() (res []types.StoredTransaction) {
 	defer i.Close()
 	for tx := i.Next(); tx != nil; tx = i.Next() {
@@ -101,6 +117,8 @@ func (i *TxIterator) Close() error {
 	return i.rows.Close()
 }
 
+// Insert single transaction.
+// If same transaction already exists, update `first_seen` to smaller of both values.
 func (s *Storage) InsertTransaction(tx *types.Transaction) (int64, error) {
 	const insertTransaction string = `
 	INSERT INTO "transaction" (txid, first_seen, fee, weight) VALUES(?, ?, ?, ?)
@@ -180,6 +198,7 @@ func (s *Storage) transactionDBIDs(txids []types.Hash32) (*[]int64, error) {
 	return &res, nil
 }
 
+// Return transactions that are confirmed in block specified by `blockId`
 func (s *Storage) TransactionsInBlock(blockId int64) (*TxIterator, error) {
 	rows, err := s.db.Query(`
 		SELECT
@@ -202,6 +221,7 @@ func (s *Storage) TransactionsInBlock(blockId int64) (*TxIterator, error) {
 	return &TxIterator{rows}, nil
 }
 
+// Return transaction satisfying query
 func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	var rows *sql.Rows
 	var err error
@@ -219,6 +239,7 @@ func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	return &TxIterator{rows}, nil
 }
 
+// Return transaction with `txid`
 func (s *Storage) TransactionById(txid types.Hash32) (*types.StoredTransaction, error) {
 	txIter, err := s.QueryTransactions(StaticQuery{
 		where: fmt.Sprintf("txid = x'%s'", txid),
@@ -231,6 +252,8 @@ func (s *Storage) TransactionById(txid types.Hash32) (*types.StoredTransaction, 
 	return txIter.Next(), nil
 }
 
+// Return transactions after `t`.
+// If multiple transactions exist for `t`, return transaction with higher `dbid`.
 func (s *Storage) NextTransactions(t time.Time, dbid int64, limit int) (*TxIterator, error) {
 	return s.QueryTransactions(StaticQuery{
 		// since there can be multiple txs with the same timestamp, we must use the dbid to query as well

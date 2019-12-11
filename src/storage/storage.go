@@ -16,6 +16,7 @@ import (
 
 const currentVersion = 5
 
+// Called when reorg event happens, either while building or reconstructing the mempool
 func LogReorg(lastBest, newBest, commonAncestor *types.StoredBlock) {
 	log.Printf(
 		"REORG: newBest.Hash=%s newBest.Height=%d lastBest.Height=%d CommonAncestor.Height=%d",
@@ -28,26 +29,31 @@ type Storage struct {
 	db *sql.DB
 }
 
+// Expected by `queryBlock` and `QueryTransactions`
 type Query interface {
 	Where() string
 	Order() string
 	Limit() int
 }
 
+// Shorthand helper implementing Query interface
 type StaticQuery struct {
 	where string
 	order string
 	limit int
 }
 
+// WHERE portion of SQL query
 func (q StaticQuery) Where() string {
 	return q.where
 }
 
+// ORDER portion of SQL query
 func (q StaticQuery) Order() string {
 	return q.order
 }
 
+// LIMIT portion of SQL query
 func (q StaticQuery) Limit() int {
 	return q.limit
 }
@@ -182,6 +188,7 @@ func (s *Storage) getVersion() (version int) {
 	return
 }
 
+// Total transaction count in DB
 func (s *Storage) TxCount() (count int, err error) {
 	row := s.db.QueryRow(`SELECT COUNT(txid) FROM "transaction"`)
 	if err := row.Scan(&count); err != nil {
@@ -201,6 +208,7 @@ func (s *Storage) migrate(fromVersion int) error {
 	return errors.Errorf("cannot migrate from version %d", fromVersion)
 }
 
+// Close underlying SQLite
 func (s *Storage) Close() error {
 	return s.db.Close()
 }

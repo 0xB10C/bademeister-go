@@ -52,6 +52,9 @@ func (b *BademeisterDaemon) dumpStats() {
 	log.Printf("Current transaction count: %d", count)
 }
 
+// Start zmqSub loop which feeds zmqSub channels.
+// Wait on zmqSub channels and call `processBlock`, `processTransaction`.
+// Stop on quit signal or errors.
 func (b *BademeisterDaemon) Run() error {
 	var zmqSubErr error
 	go func() {

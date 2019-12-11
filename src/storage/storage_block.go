@@ -11,10 +11,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Helper for fetching blocks row-by-row
 type BlockIterator struct {
 	rows *sql.Rows
 }
 
+// Retrieve next block
 func (i *BlockIterator) Next() *types.StoredBlock {
 	if !i.rows.Next() {
 		return nil
@@ -41,10 +43,12 @@ func (i *BlockIterator) Next() *types.StoredBlock {
 	return &block
 }
 
+// Close underlying cursor
 func (i *BlockIterator) Close() error {
 	return i.rows.Close()
 }
 
+// Return remaining blocks as list and close cursor
 func (i *BlockIterator) Collect() (res []types.StoredBlock) {
 	defer i.Close()
 	for b := i.Next(); b != nil; b = i.Next() {
@@ -82,6 +86,7 @@ func (s *Storage) blockByHash(h types.Hash32) (*types.StoredBlock, error) {
 	})
 }
 
+// Return most recent best block
 func (s *Storage) BestBlockNow() (*types.StoredBlock, error) {
 	return s.queryBlock(StaticQuery{
 		where: `is_best = 1`,
@@ -90,6 +95,7 @@ func (s *Storage) BestBlockNow() (*types.StoredBlock, error) {
 	})
 }
 
+// Return latest best block before or at provided time
 func (s *Storage) BestBlockAtTime(t time.Time) (*types.StoredBlock, error) {
 	return s.queryBlock(StaticQuery{
 		where: fmt.Sprintf(`(is_best = 1) AND (first_seen <= %d)`, t.Unix()),
@@ -98,6 +104,8 @@ func (s *Storage) BestBlockAtTime(t time.Time) (*types.StoredBlock, error) {
 	})
 }
 
+// Return best blocks after time `t`.
+// If multiple blocks at `t` exist, return block with higer `dbid`
 func (s *Storage) NextBestBlocks(t time.Time, dbid int64, limit int) (*BlockIterator, error) {
 	return s.queryBlocks(StaticQuery{
 		where: fmt.Sprintf(
@@ -108,6 +116,8 @@ func (s *Storage) NextBestBlocks(t time.Time, dbid int64, limit int) (*BlockIter
 	})
 }
 
+// Return closes block that is a parent of both `a` and `b`.
+// If no parent can be found, returns error.
 func (s *Storage) CommonAncestor(a, b *types.StoredBlock) (*types.StoredBlock, error) {
 	if a.Height < b.Height {
 		// make sure that b is never ahead of a
