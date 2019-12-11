@@ -2,9 +2,10 @@ package types
 
 import (
 	"bytes"
+	"testing"
+
 	"github.com/btcsuite/btcd/wire"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // coinbase of block https://blockchair.com/bitcoin/block/605453
