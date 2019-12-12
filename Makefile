@@ -30,65 +30,65 @@ all: go-fmt go-vet test-unit build
 ci: go-fmt go-vet test build
 build: build-daemon build-api
 build-daemon:
-				$(GOBUILD) -o $(BINARY_NAME_DAEMON) -v cmd/daemon/main.go
+	$(GOBUILD) -o $(BINARY_NAME_DAEMON) -v cmd/daemon/main.go
 build-api:
-				$(GOBUILD) -o $(BINARY_NAME_API) -v cmd/api/main.go
+	$(GOBUILD) -o $(BINARY_NAME_API) -v cmd/api/main.go
 clean:
-				$(GOCLEAN)
-				rm -f $(BINARY_NAME_DAEMON)
-				rm -f $(BINARY_NAME_API)
+	$(GOCLEAN)
+	rm -f $(BINARY_NAME_DAEMON)
+	rm -f $(BINARY_NAME_API)
 run-daemon: build-daemon
-				./$(BINARY_NAME_DAEMON)
+	./$(BINARY_NAME_DAEMON)
 run-api: build-api
-				./$(BINARY_NAME_API)
+	./$(BINARY_NAME_API)
 go-fmt:
-				@$(GOFMT) ./...
+	@$(GOFMT) ./...
 go-vet:
-				@$(GOVET) ./...
+	@$(GOVET) ./...
 test: test-unit test-integration
 test-unit:
-				$(GOTEST) -v -short ./...
+	$(GOTEST) -v -short ./...
 test-bitcoind-start:
-				@echo "starting bitcoind docker"
-				docker run --rm -it \
-					--name ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME} \
-					--publish ${TEST_INTEGRATION_RPC_PORT}:${TEST_INTEGRATION_RPC_PORT} \
-					--publish ${TEST_INTEGRATION_ZMQ_PORT}:${TEST_INTEGRATION_ZMQ_PORT} \
-					--detach \
-					b10c/bitcoind-patched-zmq:${TEST_INTEGRATION_DOCKER_IMAGE_TAG} \
-						-server=1 \
-						-regtest=1 \
-						-printtoconsole \
-						-rpcbind=0.0.0.0 \
-						-rpcallowip=172.17.0.0/16 \
-						-rpcuser=${TEST_INTEGRATION_RPC_USER} \
-						-rpcpassword=${TEST_INTEGRATION_RPC_PASS} \
-						-zmqpubrawblock="tcp://${TEST_INTEGRATION_ZMQ_HOST}:${TEST_INTEGRATION_ZMQ_PORT}" \
-						-zmqpubrawtxwithfee="tcp://${TEST_INTEGRATION_ZMQ_HOST}:${TEST_INTEGRATION_ZMQ_PORT}" \
-						-fallbackfee=0.00001 \
-						-debug=rpc
+	@echo "starting bitcoind docker"
+	docker run --rm -it \
+		--name ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME} \
+		--publish ${TEST_INTEGRATION_RPC_PORT}:${TEST_INTEGRATION_RPC_PORT} \
+		--publish ${TEST_INTEGRATION_ZMQ_PORT}:${TEST_INTEGRATION_ZMQ_PORT} \
+		--detach \
+		b10c/bitcoind-patched-zmq:${TEST_INTEGRATION_DOCKER_IMAGE_TAG} \
+			-server=1 \
+			-regtest=1 \
+			-printtoconsole \
+			-rpcbind=0.0.0.0 \
+			-rpcallowip=172.17.0.0/16 \
+			-rpcuser=${TEST_INTEGRATION_RPC_USER} \
+			-rpcpassword=${TEST_INTEGRATION_RPC_PASS} \
+			-zmqpubrawblock="tcp://${TEST_INTEGRATION_ZMQ_HOST}:${TEST_INTEGRATION_ZMQ_PORT}" \
+			-zmqpubrawtxwithfee="tcp://${TEST_INTEGRATION_ZMQ_HOST}:${TEST_INTEGRATION_ZMQ_PORT}" \
+			-fallbackfee=0.00001 \
+			-debug=rpc
 test-bitcoind-stop:
-				@echo "bitcoind shutdown initiated..."
-				@docker kill ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME}
-				@echo "bitcoind stopped"
+	@echo "bitcoind shutdown initiated..."
+	@docker kill ${TEST_INTEGRATION_DOCKER_CONTAINER_NAME}
+	@echo "bitcoind stopped"
 test-integration:
-				@echo ""
-				$(eval TEST_INTEGRATION_DIR := $(shell mktemp -d -t bademeister-test-XXXXXX))
-				@echo "Using TEST_INTEGRATION_DIR = $(TEST_INTEGRATION_DIR)"
-				make test-bitcoind-start TEST_INTEGRATION_DIR=$(TEST_INTEGRATION_DIR)
-				function cleanup {
-					make test-bitcoind-stop TEST_INTEGRATION_DIR=$(TEST_INTEGRATION_DIR)
-					echo "removing $(TEST_INTEGRATION_DIR)"
-					rm -rf $(TEST_INTEGRATION_DIR)
-				}
-				trap cleanup EXIT
+	@echo ""
+	$(eval TEST_INTEGRATION_DIR := $(shell mktemp -d -t bademeister-test-XXXXXX))
+	@echo "Using TEST_INTEGRATION_DIR = $(TEST_INTEGRATION_DIR)"
+	make test-bitcoind-start TEST_INTEGRATION_DIR=$(TEST_INTEGRATION_DIR)
+	function cleanup {
+		make test-bitcoind-stop TEST_INTEGRATION_DIR=$(TEST_INTEGRATION_DIR)
+		echo "removing $(TEST_INTEGRATION_DIR)"
+		rm -rf $(TEST_INTEGRATION_DIR)
+	}
+	trap cleanup EXIT
 
-				@echo "running integration tests"
-				TEST_INTEGRATION_DIR=${TEST_INTEGRATION_DIR} \
-				TEST_INTEGRATION_ZMQ_HOST=${TEST_INTEGRATION_ZMQ_HOST} \
-				TEST_INTEGRATION_ZMQ_PORT=${TEST_INTEGRATION_ZMQ_PORT} \
-				TEST_INTEGRATION_RPC_HOST=${TEST_INTEGRATION_RPC_HOST} \
-				TEST_INTEGRATION_RPC_PORT=${TEST_INTEGRATION_RPC_PORT} \
-				TEST_INTEGRATION_RPC_USER=${TEST_INTEGRATION_RPC_USER} \
-				TEST_INTEGRATION_RPC_PASS=${TEST_INTEGRATION_RPC_PASS} \
-					$(GOTEST) -v ./...
+	@echo "running integration tests"
+	TEST_INTEGRATION_DIR=${TEST_INTEGRATION_DIR} \
+	TEST_INTEGRATION_ZMQ_HOST=${TEST_INTEGRATION_ZMQ_HOST} \
+	TEST_INTEGRATION_ZMQ_PORT=${TEST_INTEGRATION_ZMQ_PORT} \
+	TEST_INTEGRATION_RPC_HOST=${TEST_INTEGRATION_RPC_HOST} \
+	TEST_INTEGRATION_RPC_PORT=${TEST_INTEGRATION_RPC_PORT} \
+	TEST_INTEGRATION_RPC_USER=${TEST_INTEGRATION_RPC_USER} \
+	TEST_INTEGRATION_RPC_PASS=${TEST_INTEGRATION_RPC_PASS} \
+		$(GOTEST) -v ./...
