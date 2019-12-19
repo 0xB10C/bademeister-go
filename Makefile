@@ -7,7 +7,7 @@ GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
-GOFMT=$(GOCMD) fmt
+GOIMPORTS=goimports
 GOVET=$(GOCMD) vet
 
 # binary names
@@ -42,7 +42,7 @@ run-daemon: build-daemon
 run-api: build-api
 	./$(BINARY_NAME_API)
 go-fmt:
-	@$(GOFMT) ./...
+	@$(GOIMPORTS) -w $(shell git ls-files | grep go$)
 go-vet:
 	@$(GOVET) ./...
 test: test-unit test-integration
