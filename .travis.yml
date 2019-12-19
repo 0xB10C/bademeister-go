@@ -22,4 +22,5 @@ git:
   depth: 1
 
 script:
+  - go get -u golang.org/x/tools/cmd/goimports
   - make ci
