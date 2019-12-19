@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-
 type ErrorLookupTransactionDBIDs struct {
 	MissingTxs []types.Hash32
 	Total      int
@@ -23,7 +22,6 @@ func IsErrorMissingTransactions(err error) bool {
 	_, ok := err.(*ErrorLookupTransactionDBIDs)
 	return ok
 }
-
 
 type TransactionQueryByTime struct {
 	FirstSeenBeforeOrAt *time.Time
@@ -101,7 +99,6 @@ func (i TxIterator) Collect() (res []types.StoredTransaction) {
 func (i *TxIterator) Close() error {
 	return i.rows.Close()
 }
-
 
 func (s *Storage) InsertTransaction(tx *types.Transaction) (int64, error) {
 	const insertTransaction string = `
