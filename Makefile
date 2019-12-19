@@ -42,7 +42,7 @@ run-daemon: build-daemon
 run-api: build-api
 	./$(BINARY_NAME_API)
 go-fmt:
-	@$(GOIMPORTS) -w $(shell git ls-files | grep go$)
+	@$(GOIMPORTS) -w $(shell git ls-files | grep -E 'go$$')
 go-vet:
 	@$(GOVET) ./...
 test: test-unit test-integration
