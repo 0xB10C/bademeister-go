@@ -2,6 +2,8 @@ export SHELL:=/bin/bash
 export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
 .ONESHELL:
 
+GOFILES=$(shell git ls-files | grep -E 'go$$')
+
 # Go parameters
 GOCMD=go
 GOBUILD=$(GOCMD) build
@@ -27,7 +29,7 @@ TEST_INTEGRATION_ZMQ_PORT="28334"
 
 
 all: go-fmt go-vet test-unit build
-ci: go-fmt go-vet test build
+ci: go-fmt-check go-vet test build
 build: build-daemon build-api
 build-daemon:
 	$(GOBUILD) -o $(BINARY_NAME_DAEMON) -v cmd/daemon/main.go
@@ -42,7 +44,13 @@ run-daemon: build-daemon
 run-api: build-api
 	./$(BINARY_NAME_API)
 go-fmt:
-	@$(GOIMPORTS) -w $(shell git ls-files | grep -E 'go$$')
+	@$(GOIMPORTS) -w $(GOFILES)
+go-fmt-check:
+	@unformatted=$(shell @$(GOIMPORTS) -l $(GOFILES))
+	if [ ! -z "$$unformatted" ]; then \
+		echo "Unformatted files: $$unformatted"; \
+		exit 1
+	fi
 go-vet:
 	@$(GOVET) ./...
 test: test-unit test-integration
