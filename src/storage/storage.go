@@ -3,11 +3,12 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/pkg/errors"
 	"log"
 	"os"
 	"strings"
+
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/pkg/errors"
 )
 
 const currentVersion = 4
@@ -58,8 +59,6 @@ func formatQuery(fields []string, table string, q Query) string {
 
 	return query
 }
-
-
 
 // reference: https://github.com/mattn/go-sqlite3/blob/master/_example/simple/simple.go
 func NewStorage(path string) (*Storage, error) {

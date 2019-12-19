@@ -28,3 +28,13 @@ algorithms and other applications.
     * `getFirstSeen(txid, nodeId): Date`
     * `getMempool(Date, nodeId): Transaction[]`
 * Easy to combine multiple sources of data to have a robust data collection network
+
+## Development
+
+### Git Hooks
+
+Please set up git hooks to run `go fmt` and other linters:
+
+```bash
+git config core.hooksPath git_hooks
+```

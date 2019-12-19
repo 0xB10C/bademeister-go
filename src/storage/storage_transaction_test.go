@@ -124,4 +124,3 @@ func TestStorage_NextTransactions(t *testing.T) {
 		}
 	}
 }
-

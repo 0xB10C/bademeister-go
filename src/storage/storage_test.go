@@ -3,9 +3,10 @@ package storage
 import (
 	"crypto/sha256"
 	"fmt"
-	"github.com/0xb10c/bademeister-go/src/types"
 	"os"
 	"time"
+
+	"github.com/0xb10c/bademeister-go/src/types"
 )
 
 // GenerateHash32 returns the hash of a provided preimage.

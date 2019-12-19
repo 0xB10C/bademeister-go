@@ -1,12 +1,13 @@
 package zmqsubscriber
 
 import (
-	"github.com/pkg/errors"
-	"github.com/stretchr/testify/assert"
 	"log"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/0xb10c/bademeister-go/src/bitcoinrpcclient"
 
