@@ -17,10 +17,13 @@ gofiles=$(git diff --cached --name-only --diff-filter=ACM | grep -v vendor | gre
 [ -z "$gofiles" ] && exit 0
 
 unformatted=$(goimports -l $gofiles)
-[ -z "$unformatted" ] && exit 0
+if [ ! -z "$unformatted" ]; then
+  # Some files are not goimport'd. Print message and fail.
+  echo >&2 "Go files must be formatted with goimports. Please run \`make go-fmt\`".
+  exit 1
+fi
 
-# Some files are not goimport'd. Print message and fail.
-
-echo >&2 "Go files must be formatted with goimports. Please run \`make go-fmt\`".
-
-exit 1
+if ! golint -set_exit_status "$gofiles"; then
+  echo >&2 "golint failed, aborting"
+  exit 1
+fi
