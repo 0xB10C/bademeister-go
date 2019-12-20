@@ -15,7 +15,9 @@ type Transaction struct {
 	IndexInBlock int32      `json:"indexInBlock"`
 }
 
+// StoredTransaction extends Transaction with  Database ID
 type StoredTransaction struct {
+	// Internal database ID
 	DBID int64
 	Transaction
 }

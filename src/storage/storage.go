@@ -7,37 +7,55 @@ import (
 	"os"
 	"strings"
 
+	"github.com/0xb10c/bademeister-go/src/types"
+
+	// import sqlite adapter
 	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/pkg/errors"
 )
 
-const currentVersion = 4
+const currentVersion = 5
+
+// LogReorg logs reorg events in a standard format.
+// Reorgs happen either while building or reconstructing the mempool
+func LogReorg(lastBest, newBest, commonAncestor *types.StoredBlock) {
+	log.Printf(
+		"REORG: newBest.Hash=%s newBest.Height=%d lastBest.Height=%d CommonAncestor.Height=%d",
+		newBest.Hash, newBest.Height, lastBest.Height, commonAncestor.Height,
+	)
+}
 
 // Storage represents a SQL database.
 type Storage struct {
 	db *sql.DB
 }
 
+// Query is expected by `queryBlock` and `QueryTransactions`
 type Query interface {
 	Where() string
 	Order() string
 	Limit() int
 }
 
+// StaticQuery is a helper implementing Query interface
 type StaticQuery struct {
 	where string
 	order string
 	limit int
 }
 
+// Where returns the WHERE portion of an SQL query
 func (q StaticQuery) Where() string {
 	return q.where
 }
 
+// Order returns the ORDER portion of an SQL query
 func (q StaticQuery) Order() string {
 	return q.order
 }
 
+// Limit returns the LIMIT portion of an SQL query
 func (q StaticQuery) Limit() int {
 	return q.limit
 }
@@ -60,6 +78,7 @@ func formatQuery(fields []string, table string, q Query) string {
 	return query
 }
 
+// NewStorage returns a sqlite storage with required tables.
 // reference: https://github.com/mattn/go-sqlite3/blob/master/_example/simple/simple.go
 func NewStorage(path string) (*Storage, error) {
 	_, err := os.Stat(path)
@@ -130,6 +149,34 @@ func (s *Storage) initialize(version int) error {
 		return errors.Errorf("could not create the table `transaction`: %s", err)
 	}
 
+	const createBlockTable string = `
+		CREATE TABLE "block" (
+			 id         INTEGER PRIMARY KEY UNIQUE NOT NULL, 
+			 hash       BLOB (32) UNIQUE NOT NULL, 
+			 parent     BLOB (32),
+			 first_seen INTEGER, 
+			 height     INTEGER,
+			 is_best	INTEGER
+		)
+	`
+	if _, err := s.db.Exec(createBlockTable); err != nil {
+		return errors.Errorf("could not create the table `block`: %s", err)
+	}
+
+	const createTransactionBlockTabe string = `
+		CREATE TABLE transaction_block (
+			-- internal transaction id
+			transaction_id INTEGER REFERENCES "transaction" (id) NOT NULL, 
+			-- internal block id
+			block_id       INTEGER REFERENCES "block" (id) NOT NULL,
+			-- position of tx in block
+			block_index    INTEGER NOT NULL
+  		)
+	`
+	if _, err := s.db.Exec(createTransactionBlockTabe); err != nil {
+		return errors.Errorf("could not create the table `transaction_block`: %s", err)
+	}
+
 	return nil
 }
 
@@ -144,6 +191,7 @@ func (s *Storage) getVersion() (version int) {
 	return
 }
 
+// TxCount returns the transaction count in DB
 func (s *Storage) TxCount() (count int, err error) {
 	row := s.db.QueryRow(`SELECT COUNT(txid) FROM "transaction"`)
 	if err := row.Scan(&count); err != nil {
@@ -163,6 +211,7 @@ func (s *Storage) migrate(fromVersion int) error {
 	return errors.Errorf("cannot migrate from version %d", fromVersion)
 }
 
+// Close underlying SQLite
 func (s *Storage) Close() error {
 	return s.db.Close()
 }

@@ -100,11 +100,16 @@ func TestZMQSubscriber(t *testing.T) {
 		require.Equal(t, 1, len(hashes))
 		block1 := waitForZMQBlock(t, z, zmqWaitTimeout)
 		require.NotNil(t, block1)
+		assert.Equal(t, hashes[0][:], block1.Hash[:])
+		assert.Greater(t, int(block1.Height), 100)
+		assert.Equal(t, 1, len(block1.TxIDs))
 
 		_, err = rpcClient.GenerateToAddress(1, addressMineTo)
 		require.NoError(t, err)
 		block2 := waitForZMQBlock(t, z, zmqWaitTimeout)
 		require.NotNil(t, block2)
+		assert.Equal(t, block1.Height+1, block2.Height)
+		assert.Equal(t, block1.Hash, block2.Parent)
 	}
 
 	_, err = rpcClient.SendSimpleTransaction(addressSendTo)

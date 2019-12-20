@@ -18,7 +18,9 @@ import (
 
 // ZMQSubscriber represents a ZMQ subscriber for the Bitcoin Core ZMQ interface
 type ZMQSubscriber struct {
-	IncomingTx     chan types.Transaction
+	// Deserialized transactions
+	IncomingTx chan types.Transaction
+	// Deserialized blocks
 	IncomingBlocks chan types.Block
 	topics         []string
 	socket         *zmq4.Socket
@@ -184,6 +186,7 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 }
 
 func parseBlock(firstSeen time.Time, msg [][]byte) (*types.Block, error) {
-	// TODO
-	return &types.Block{}, nil
+	rawblock, ctr := msg[0], msg[1]
+	_ = ctr
+	return types.NewBlock(firstSeen, rawblock)
 }
