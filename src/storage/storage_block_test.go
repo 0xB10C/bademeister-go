@@ -38,7 +38,7 @@ func TestStorage_InsertBlock(t *testing.T) {
 
 	testLastRemoved := func(txids []types.Hash32, tm time.Time) {
 		for _, txid := range txids {
-			tx, err := st.TransactionById(txid)
+			tx, err := st.TransactionByID(txid)
 			require.NoError(t, err)
 			require.NotNil(t, tx.LastRemoved)
 			assert.Equal(t, tm, *tx.LastRemoved, fmt.Sprintf(`txid=%s`, txid))
@@ -91,7 +91,7 @@ func TestStorage_InsertBlock(t *testing.T) {
 			}
 
 			for _, tx := range testChain.transactions {
-				storedTx, err := st.TransactionById(tx.TxID)
+				storedTx, err := st.TransactionByID(tx.TxID)
 				require.NoError(t, err)
 				if _, ok := confirmedTxs[tx.TxID]; ok {
 					assert.NotNil(t, storedTx.LastRemoved)
@@ -103,22 +103,22 @@ func TestStorage_InsertBlock(t *testing.T) {
 	}
 }
 
-func chainedBlocks(startHeight int, parentId string, blockIds []string) (res []types.Block) {
+func chainedBlocks(startHeight int, parentID string, blockIds []string) (res []types.Block) {
 	// The first block has the zero has as the parent id.
 	// Allow the empty string as a special value to be able to insert a block without a parent.
-	var prevId types.Hash32
-	if parentId != "" {
-		prevId = GenerateHash32(parentId)
+	var prevID types.Hash32
+	if parentID != "" {
+		prevID = GenerateHash32(parentID)
 	}
-	for i, blockId := range blockIds {
+	for i, blockID := range blockIds {
 		block := types.Block{
-			Hash:      GenerateHash32(blockId),
-			Parent:    prevId,
+			Hash:      GenerateHash32(blockID),
+			Parent:    prevID,
 			Height:    uint32(startHeight + i),
 			FirstSeen: GetTime(i * 100),
 		}
 		res = append(res, block)
-		prevId = block.Hash
+		prevID = block.Hash
 	}
 	return res
 }
@@ -141,7 +141,7 @@ func TestStorage_commonAncestor(t *testing.T) {
 	require.NoError(t, err)
 	defer st.Close()
 
-	commonAncestorById := func(a, b string) (*types.Block, error) {
+	commonAncestorByID := func(a, b string) (*types.Block, error) {
 		block1, err := st.blockByHash(GenerateHash32(a))
 		if err != nil {
 			return nil, err
@@ -164,13 +164,13 @@ func TestStorage_commonAncestor(t *testing.T) {
 	)
 
 	testCommonAncestor := func(a, b, expected string) {
-		ancestor, err := commonAncestorById(a, b)
+		ancestor, err := commonAncestorByID(a, b)
 		if !assert.NoError(t, err) {
 			return
 		}
 		assert.Equal(t, ancestor.Hash, GenerateHash32(expected))
 
-		revAncestor, err := commonAncestorById(b, a)
+		revAncestor, err := commonAncestorByID(b, a)
 		if !assert.NoError(t, err) {
 			return
 		}

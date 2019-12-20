@@ -10,6 +10,7 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
+// Block contains the block data required for mempool reconstruction
 type Block struct {
 	Hash        Hash32    `json:"hash"`
 	Parent      Hash32    `json:"parent"`
@@ -46,7 +47,7 @@ func parseHeight(txin wire.TxIn) int {
 	return int(binary.LittleEndian.Uint32(heightLittleEndian))
 }
 
-// Create new Block from serialized bytes
+// NewBlock creates a new Block from serialized bytes
 func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
 	reader := bytes.NewReader(rawblock)
 
@@ -85,7 +86,7 @@ func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
 	}, nil
 }
 
-// Extends Block with Database ID
+// StoredBlock extends Block with Database ID
 type StoredBlock struct {
 	// Internal database ID
 	DBID int64

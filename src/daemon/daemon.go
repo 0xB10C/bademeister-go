@@ -9,6 +9,7 @@ import (
 	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
 )
 
+// BademeisterDaemon reads data off ZMQSubscriber and inserts it to Storage
 type BademeisterDaemon struct {
 	zmqSub  *zmqsubscriber.ZMQSubscriber
 	storage *storage.Storage
@@ -52,7 +53,7 @@ func (b *BademeisterDaemon) dumpStats() {
 	log.Printf("Current transaction count: %d", count)
 }
 
-// Start zmqSub loop which feeds zmqSub channels.
+// Run starts the zmqSub loop which feeds zmqSub channels.
 // Wait on zmqSub channels and call `processBlock`, `processTransaction`.
 // Stop on quit signal or errors.
 func (b *BademeisterDaemon) Run() error {
@@ -83,10 +84,12 @@ func (b *BademeisterDaemon) Run() error {
 	}
 }
 
+// Stop makes Run() return
 func (b *BademeisterDaemon) Stop() {
 	b.quit <- struct{}{}
 }
 
+// Close shuts down the storage
 func (b *BademeisterDaemon) Close() error {
 	errors := false
 

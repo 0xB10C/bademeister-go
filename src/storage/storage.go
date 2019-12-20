@@ -8,15 +8,17 @@ import (
 	"strings"
 
 	"github.com/0xb10c/bademeister-go/src/types"
+
+	// import sqlite adapter
 	_ "github.com/mattn/go-sqlite3"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 )
 
 const currentVersion = 5
 
-// Called when reorg event happens, either while building or reconstructing the mempool
+// LogReorg logs reorg events in a standard format.
+// Reorgs happen either while building or reconstructing the mempool
 func LogReorg(lastBest, newBest, commonAncestor *types.StoredBlock) {
 	log.Printf(
 		"REORG: newBest.Hash=%s newBest.Height=%d lastBest.Height=%d CommonAncestor.Height=%d",
@@ -29,31 +31,31 @@ type Storage struct {
 	db *sql.DB
 }
 
-// Expected by `queryBlock` and `QueryTransactions`
+// Query is expected by `queryBlock` and `QueryTransactions`
 type Query interface {
 	Where() string
 	Order() string
 	Limit() int
 }
 
-// Shorthand helper implementing Query interface
+// StaticQuery is a helper implementing Query interface
 type StaticQuery struct {
 	where string
 	order string
 	limit int
 }
 
-// WHERE portion of SQL query
+// Where returns the WHERE portion of an SQL query
 func (q StaticQuery) Where() string {
 	return q.where
 }
 
-// ORDER portion of SQL query
+// Order returns the ORDER portion of an SQL query
 func (q StaticQuery) Order() string {
 	return q.order
 }
 
-// LIMIT portion of SQL query
+// Limit returns the LIMIT portion of an SQL query
 func (q StaticQuery) Limit() int {
 	return q.limit
 }
@@ -76,6 +78,7 @@ func formatQuery(fields []string, table string, q Query) string {
 	return query
 }
 
+// NewStorage returns a sqlite storage with required tables.
 // reference: https://github.com/mattn/go-sqlite3/blob/master/_example/simple/simple.go
 func NewStorage(path string) (*Storage, error) {
 	_, err := os.Stat(path)
@@ -188,7 +191,7 @@ func (s *Storage) getVersion() (version int) {
 	return
 }
 
-// Total transaction count in DB
+// TxCount returns the transaction count in DB
 func (s *Storage) TxCount() (count int, err error) {
 	row := s.db.QueryRow(`SELECT COUNT(txid) FROM "transaction"`)
 	if err := row.Scan(&count); err != nil {

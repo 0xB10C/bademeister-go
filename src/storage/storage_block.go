@@ -11,12 +11,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Helper for fetching blocks row-by-row
+// BlockIterator helps fetching blocks row-by-row
 type BlockIterator struct {
 	rows *sql.Rows
 }
 
-// Retrieve next block
+// Next returns next block
 func (i *BlockIterator) Next() *types.StoredBlock {
 	if !i.rows.Next() {
 		return nil
@@ -48,7 +48,7 @@ func (i *BlockIterator) Close() error {
 	return i.rows.Close()
 }
 
-// Return remaining blocks as list and close cursor
+// Collect returns remaining blocks as list and closes cursor
 func (i *BlockIterator) Collect() (res []types.StoredBlock) {
 	defer i.Close()
 	for b := i.Next(); b != nil; b = i.Next() {
@@ -86,7 +86,7 @@ func (s *Storage) blockByHash(h types.Hash32) (*types.StoredBlock, error) {
 	})
 }
 
-// Return most recent best block
+// BestBlockNow returns the most recent best block
 func (s *Storage) BestBlockNow() (*types.StoredBlock, error) {
 	return s.queryBlock(StaticQuery{
 		where: `is_best = 1`,
@@ -95,7 +95,7 @@ func (s *Storage) BestBlockNow() (*types.StoredBlock, error) {
 	})
 }
 
-// Return latest best block before or at provided time
+// BestBlockAtTime returns latest best block before or at provided time
 func (s *Storage) BestBlockAtTime(t time.Time) (*types.StoredBlock, error) {
 	return s.queryBlock(StaticQuery{
 		where: fmt.Sprintf(`(is_best = 1) AND (first_seen <= %d)`, t.Unix()),
@@ -104,8 +104,8 @@ func (s *Storage) BestBlockAtTime(t time.Time) (*types.StoredBlock, error) {
 	})
 }
 
-// Return best blocks after time `t`.
-// If multiple blocks at `t` exist, return block with higer `dbid`
+// NextBestBlocks returns best blocks after time `t`.
+// If multiple blocks at `t` exist, return block with higher `dbid`
 func (s *Storage) NextBestBlocks(t time.Time, dbid int64, limit int) (*BlockIterator, error) {
 	return s.queryBlocks(StaticQuery{
 		where: fmt.Sprintf(
@@ -116,7 +116,7 @@ func (s *Storage) NextBestBlocks(t time.Time, dbid int64, limit int) (*BlockIter
 	})
 }
 
-// Return closes block that is a parent of both `a` and `b`.
+// CommonAncestor returns closest block that is a parent of both `a` and `b`.
 // If no parent can be found, returns error.
 func (s *Storage) CommonAncestor(a, b *types.StoredBlock) (*types.StoredBlock, error) {
 	if a.Height < b.Height {
@@ -147,7 +147,7 @@ func (s *Storage) CommonAncestor(a, b *types.StoredBlock) (*types.StoredBlock, e
 	return s.CommonAncestor(aParent, b)
 }
 
-// Finds the reorg base for the given block.
+// ReorgBase finds the reorg base for the given block.
 // If the block is on final the consensus chain, this will simply return the current block.
 // If the block is on a minority chain that will be reorged, returns the common ancestor.
 func (s *Storage) ReorgBase(block *types.Block) (*types.StoredBlock, error) {
@@ -196,7 +196,7 @@ func (s *Storage) ReorgBase(block *types.Block) (*types.StoredBlock, error) {
 	return s.CommonAncestor(storedBlock, lastBest)
 }
 
-// Run function `f` up the parent chain from blocks `start` to `end` (not including `end`)
+// WalkBlocks runs function `f` up the parent chain from blocks `start` to `end` (not including `end`)
 // If end is nil, called once for `start`
 func (s *Storage) WalkBlocks(start, end *types.StoredBlock, f func(*types.StoredBlock) error) error {
 	current := start
@@ -321,7 +321,7 @@ func (s *Storage) insertBlock(block *types.Block, firstBlock bool) (int64, error
 	return res.LastInsertId()
 }
 
-func (s *Storage) insertTransactionBlock(blockId int64, dbids []int64) error {
+func (s *Storage) insertTransactionBlock(blockID int64, dbids []int64) error {
 	if len(dbids) == 0 {
 		return nil
 	}
@@ -330,7 +330,7 @@ func (s *Storage) insertTransactionBlock(blockId int64, dbids []int64) error {
 	for blockIndex, dbid := range dbids {
 		valueTuples = append(
 			valueTuples,
-			fmt.Sprintf("(%d, %d, %d)", dbid, blockId, blockIndex),
+			fmt.Sprintf("(%d, %d, %d)", dbid, blockID, blockIndex),
 		)
 	}
 
@@ -382,7 +382,7 @@ func (s *Storage) updateLastRemoved(block *types.StoredBlock, lastRemoved *time.
 	return err
 }
 
-// Insert new block and update `last_removed` transactions.
+// InsertBlock inserts new block and update `last_removed` transactions.
 func (s *Storage) InsertBlock(block *types.Block) (int64, error) {
 	txDbIds, err := s.transactionDBIDs(block.TxIDs)
 	if err != nil {
@@ -401,19 +401,19 @@ func (s *Storage) InsertBlock(block *types.Block) (int64, error) {
 		return 0, err
 	}
 
-	blockId, err := s.insertBlock(block, isFirstBlock)
+	blockID, err := s.insertBlock(block, isFirstBlock)
 	if err != nil {
 		return 0, errors.Errorf("error in insertBlock(): %s", err)
 	}
 
-	err = s.insertTransactionBlock(blockId, *txDbIds)
+	err = s.insertTransactionBlock(blockID, *txDbIds)
 	if err != nil {
 		return 0, errors.Errorf("error in insertTransactionBlock(): %s", err)
 	}
 
 	if block.IsBest {
 		storedBlock := types.StoredBlock{
-			DBID:  blockId,
+			DBID:  blockID,
 			Block: *block,
 		}
 		if err := s.updateBestBlock(currentBest, &storedBlock); err != nil {
@@ -421,5 +421,5 @@ func (s *Storage) InsertBlock(block *types.Block) (int64, error) {
 		}
 	}
 
-	return blockId, nil
+	return blockID, nil
 }

@@ -13,6 +13,8 @@ func (h Hash32) String() string {
 	return hex.EncodeToString(h[:])
 }
 
+// NewHashFromBytes returns a new Hash32 from a 32-length byte slice.
+// Panics on length mismatch.
 func NewHashFromBytes(bytes []byte) (res Hash32) {
 	if len(bytes) != 32 {
 		// for ergonomics, we do not return an error here
@@ -22,6 +24,7 @@ func NewHashFromBytes(bytes []byte) (res Hash32) {
 	return
 }
 
+// NewHashFromArray returns a new Hash32 from a 32-length byte array.
 func NewHashFromArray(bytes [32]byte) Hash32 {
 	return NewHashFromBytes(bytes[:])
 }
