@@ -36,5 +36,5 @@ algorithms and other applications.
 Please set up git hooks to run `go fmt` and other linters:
 
 ```bash
-git config core.hooksPath git_hooks
+git config core.hooksPath .git_hooks
 ```
