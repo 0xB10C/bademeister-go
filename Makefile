@@ -11,6 +11,7 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOIMPORTS=goimports
 GOVET=$(GOCMD) vet
+GOLINT=golint
 
 # binary names
 BINARY_NAME_DAEMON=bademeisterd
@@ -28,8 +29,8 @@ TEST_INTEGRATION_ZMQ_HOST="0.0.0.0"
 TEST_INTEGRATION_ZMQ_PORT="28334"
 
 
-all: go-fmt go-vet test-unit build
-ci: go-fmt-check go-vet test build
+all: go-fmt go-vet go-lint test-unit build
+ci: go-fmt-check go-vet go-lint test build
 build: build-daemon build-api
 build-daemon:
 	$(GOBUILD) -o $(BINARY_NAME_DAEMON) -v cmd/daemon/main.go
@@ -53,6 +54,8 @@ go-fmt-check:
 	fi
 go-vet:
 	@$(GOVET) ./...
+go-lint:
+	@$(GOLINT) -set_exit_status ./...
 test: test-unit test-integration
 test-unit:
 	$(GOTEST) -v -short ./...
