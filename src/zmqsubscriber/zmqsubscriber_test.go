@@ -61,6 +61,21 @@ func setupAndRunZMQSubscriber(t *testing.T, zmqAddress string) (*ZMQSubscriber, 
 	return z, nil
 }
 
+// drainZMQChannels empties any pending messages on a ZMQSubscriber
+func drainZMQChannels(z *ZMQSubscriber) {
+	for {
+		// receive any Blocks or Transactions and discard them
+		// if no messages are pending, return
+		select {
+		case <-z.IncomingBlocks:
+		case <-z.IncomingTx:
+		default:
+			return
+		}
+	}
+
+}
+
 func TestZMQSubscriber(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
@@ -84,6 +99,10 @@ func TestZMQSubscriber(t *testing.T) {
 	z, err := setupAndRunZMQSubscriber(t, zmqAddress)
 	require.NoError(t, err)
 	defer z.Stop()
+
+	// Other tests can put events on the ZMQ socket which are not related to these tests.
+	// Remove them from the channel.
+	drainZMQChannels(z)
 
 	{
 		hashes, err := rpcClient.GenerateToFixedAddress(1)

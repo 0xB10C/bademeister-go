@@ -28,3 +28,11 @@ func NewHashFromBytes(bytes []byte) (res Hash32) {
 func NewHashFromArray(bytes [32]byte) Hash32 {
 	return NewHashFromBytes(bytes[:])
 }
+
+// Reversed returns a Hash with the byte sequence in reverse order
+func (h Hash32) Reversed() (res Hash32) {
+	for i := range h {
+		res[31-i] = h[i]
+	}
+	return
+}
