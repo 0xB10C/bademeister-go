@@ -9,11 +9,13 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
+	"github.com/pkg/errors"
 )
 
 // BitcoinRPCClient represents a Bitcoin Core RPC Client.
 type BitcoinRPCClient struct {
 	*rpcclient.Client
+	addressMineTo btcutil.Address
 }
 
 // NewBitcoinRPCClient returns a new Bitcoin Core RPC Client. This functions
@@ -43,13 +45,19 @@ func NewBitcoinRPCClient(rpcUser, rpcPass, rpcHost, rpcPort string) (*BitcoinRPC
 		return nil, err
 	}
 
-	client := &BitcoinRPCClient{rpc}
+	client := &BitcoinRPCClient{Client: rpc}
 
 	err = client.waitTillRPCServerReady(10 * time.Second)
 	if err != nil {
 		return nil, err
 	}
 
+	addressMineTo, err := rpc.GetNewAddress("addressMineTo")
+	if err != nil {
+		return nil, errors.Wrapf(err, "error creating mining address")
+	}
+
+	client.addressMineTo = addressMineTo
 	return client, nil
 }
 
@@ -72,6 +80,11 @@ func (rpcClient *BitcoinRPCClient) waitTillRPCServerReady(timeout time.Duration)
 		}
 	}
 	return fmt.Errorf("timed out after %s while waiting for the Bitcoin Core RPC Server to be ready", timeout)
+}
+
+// Generate is deprecated, see error message
+func (rpcClient *BitcoinRPCClient) Generate(nBlocks int) ([]*chainhash.Hash, error) {
+	return nil, fmt.Errorf("deprecated, use GenerateToAddress(int, Address) or GenerateToFixedAddress(int)")
 }
 
 // GenerateToAddress mines `nBlocks` to the passed address and returns the block
@@ -113,6 +126,11 @@ func (rpcClient *BitcoinRPCClient) GenerateToAddress(nBlocks int, address btcuti
 	}
 
 	return chainhashes, nil
+}
+
+// GenerateToFixedAddress mines blocks to `addressMineTo`
+func (rpcClient *BitcoinRPCClient) GenerateToFixedAddress(nBlocks int) ([]*chainhash.Hash, error) {
+	return rpcClient.GenerateToAddress(nBlocks, rpcClient.addressMineTo)
 }
 
 // SendSimpleTransaction sends 0.1 BTC to the passed address via the

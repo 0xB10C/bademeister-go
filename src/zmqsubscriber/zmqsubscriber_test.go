@@ -80,11 +80,8 @@ func TestZMQSubscriber(t *testing.T) {
 	rpcClient, err := bitcoinrpcclient.NewBitcoinRPCClient(rpcUser, rpcPass, rpcHost, rpcPort)
 	require.NoError(t, err)
 
-	addressMineTo, err := rpcClient.GetNewAddress("addressMineTo")
-	require.NoError(t, err)
-
 	// Generate 101 blocks to have spendable UTXOs.
-	_, err = rpcClient.GenerateToAddress(101, addressMineTo)
+	_, err = rpcClient.GenerateToFixedAddress(101)
 	require.NoError(t, err)
 
 	addressSendTo, err := rpcClient.GetNewAddress("addressSendTo")
@@ -95,7 +92,7 @@ func TestZMQSubscriber(t *testing.T) {
 	defer z.Stop()
 
 	{
-		hashes, err := rpcClient.GenerateToAddress(1, addressMineTo)
+		hashes, err := rpcClient.GenerateToFixedAddress(1)
 		require.NoError(t, err)
 		require.Equal(t, 1, len(hashes))
 		block1 := waitForZMQBlock(t, z, zmqWaitTimeout)
@@ -104,7 +101,7 @@ func TestZMQSubscriber(t *testing.T) {
 		assert.Greater(t, int(block1.Height), 100)
 		assert.Equal(t, 1, len(block1.TxIDs))
 
-		_, err = rpcClient.GenerateToAddress(1, addressMineTo)
+		_, err = rpcClient.GenerateToFixedAddress(1)
 		require.NoError(t, err)
 		block2 := waitForZMQBlock(t, z, zmqWaitTimeout)
 		require.NotNil(t, block2)
@@ -119,7 +116,7 @@ func TestZMQSubscriber(t *testing.T) {
 	assert.InDelta(t, 250, int(tx.Fee), 250)
 	assert.InDelta(t, 500, int(tx.Weight), 500)
 
-	_, err = rpcClient.GenerateToAddress(1, addressMineTo)
+	_, err = rpcClient.GenerateToFixedAddress(1)
 	require.NoError(t, err)
 	require.NotNil(t, waitForZMQBlock(t, z, zmqWaitTimeout))
 
@@ -135,7 +132,7 @@ func TestZMQSubscriber(t *testing.T) {
 		require.NoError(t, err)
 		defer z2.Stop()
 
-		_, err = rpcClient.GenerateToAddress(1, addressMineTo)
+		_, err = rpcClient.GenerateToFixedAddress(1)
 		require.NoError(t, err)
 		require.NotNil(t, waitForZMQBlock(t, z, zmqWaitTimeout))
 		require.NotNil(t, waitForZMQBlock(t, z2, zmqWaitTimeout))
