@@ -1,7 +1,6 @@
 package zmqsubscriber
 
 import (
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -47,15 +46,15 @@ func waitForZMQBlock(t *testing.T, z *ZMQSubscriber, timeout time.Duration) *typ
 	}
 }
 
-func setupAndRunZMQSubscriber(t *testing.T, zmqHost string, zmqPort string) (*ZMQSubscriber, error) {
-	z, err := NewZMQSubscriber(zmqHost, zmqPort)
+func setupAndRunZMQSubscriber(t *testing.T, zmqAddress string) (*ZMQSubscriber, error) {
+	z, err := NewZMQSubscriber(zmqAddress)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create a new ZMQ Subscriber")
 	}
 
 	go func() {
 		if err := z.Run(); err != nil {
-			log.Fatalf("ZMQSubscriber exited with error: %s", err)
+			t.Fatalf("ZMQSubscriber exited with error: %s", err)
 		}
 	}()
 
@@ -67,17 +66,13 @@ func TestZMQSubscriber(t *testing.T) {
 		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
 	}
 
-	const zmqWaitTimeout = 5 * time.Second
+	const zmqWaitTimeout = 10 * time.Second
 
 	// The environment variables `TEST_INTEGRATION_*` are set in the Makefile.
-	zmqHost := os.Getenv("TEST_INTEGRATION_ZMQ_HOST")
-	zmqPort := os.Getenv("TEST_INTEGRATION_ZMQ_PORT")
-	rpcHost := os.Getenv("TEST_INTEGRATION_RPC_HOST")
-	rpcPort := os.Getenv("TEST_INTEGRATION_RPC_PORT")
-	rpcUser := os.Getenv("TEST_INTEGRATION_RPC_USER")
-	rpcPass := os.Getenv("TEST_INTEGRATION_RPC_PASS")
+	zmqAddress := os.Getenv("TEST_INTEGRATION_ZMQ_ADDRESS")
+	rpcAddress := os.Getenv("TEST_INTEGRATION_RPC_ADDRESS")
 
-	rpcClient, err := bitcoinrpcclient.NewBitcoinRPCClient(rpcUser, rpcPass, rpcHost, rpcPort)
+	rpcClient, err := bitcoinrpcclient.NewBitcoinRPCClient(rpcAddress)
 	require.NoError(t, err)
 
 	// Generate 101 blocks to have spendable UTXOs.
@@ -87,7 +82,7 @@ func TestZMQSubscriber(t *testing.T) {
 	addressSendTo, err := rpcClient.GetNewAddress("addressSendTo")
 	require.NoError(t, err)
 
-	z, err := setupAndRunZMQSubscriber(t, zmqHost, zmqPort)
+	z, err := setupAndRunZMQSubscriber(t, zmqAddress)
 	require.NoError(t, err)
 	defer z.Stop()
 
@@ -128,7 +123,7 @@ func TestZMQSubscriber(t *testing.T) {
 	// This demonstrates that it should be possible to connect multiples instance of
 	// Bademeisterd and have continuous capture.
 	{
-		z2, err := setupAndRunZMQSubscriber(t, zmqHost, zmqPort)
+		z2, err := setupAndRunZMQSubscriber(t, zmqAddress)
 		require.NoError(t, err)
 		defer z2.Stop()
 

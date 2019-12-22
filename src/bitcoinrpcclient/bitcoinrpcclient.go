@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"time"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -21,21 +22,25 @@ type BitcoinRPCClient struct {
 // NewBitcoinRPCClient returns a new Bitcoin Core RPC Client. This functions
 // waits for a maximum of 10 seconds for the corresponding RPC server to be
 // ready. Otherwise it returns a timeout.
-func NewBitcoinRPCClient(rpcUser, rpcPass, rpcHost, rpcPort string) (*BitcoinRPCClient, error) {
-	if len(rpcPass) == 0 {
-		return nil, fmt.Errorf("rpcPass is empty")
+func NewBitcoinRPCClient(rpcAddress string) (*BitcoinRPCClient, error) {
+	if len(rpcAddress) == 0 {
+		return nil, errors.Errorf("rpcAddress is empty")
 	}
-	if len(rpcUser) == 0 || len(rpcHost) == 0 || len(rpcPort) == 0 {
-		return nil, fmt.Errorf(
-			"received empty parameter (rpcUser=%q rpcPass=(hidden) rpcHost=%q rpcPort=%q)",
-			rpcUser, rpcHost, rpcPort,
-		)
+
+	u, err := url.Parse(rpcAddress)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid rpc address")
+	}
+
+	pass, ok := u.User.Password()
+	if !ok {
+		return nil, errors.Errorf("password not set")
 	}
 
 	cfg := &rpcclient.ConnConfig{
-		Host:         rpcHost + ":" + rpcPort,
-		User:         rpcUser,
-		Pass:         rpcPass,
+		Host:         u.Host,
+		User:         u.User.Username(),
+		Pass:         pass,
 		HTTPPostMode: true,
 		DisableTLS:   true,
 	}

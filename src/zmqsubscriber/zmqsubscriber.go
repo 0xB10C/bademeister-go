@@ -3,11 +3,12 @@ package zmqsubscriber
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"log"
 	"syscall"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/btcsuite/btcd/wire"
 
@@ -32,7 +33,7 @@ const topicRawTxWithFee = "rawtxwithfee"
 
 // NewZMQSubscriber creates and returns a new ZMQSubscriber,
 // which subscribes and connect to a Bitcoin Core ZMQ interface.
-func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
+func NewZMQSubscriber(zmqAddress string) (*ZMQSubscriber, error) {
 	socket, err := zmq4.NewSocket(zmq4.SUB)
 	if err != nil {
 		return nil, err
@@ -46,15 +47,14 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 		}
 	}
 
-	connectionString := "tcp://" + host + ":" + port
-	if err = socket.Connect(connectionString); err != nil {
-		return nil, fmt.Errorf("could not connect ZMQ subscriber to '%s': %s", connectionString, err)
+	if err = socket.Connect(zmqAddress); err != nil {
+		return nil, errors.Errorf("could not connect ZMQ subscriber to '%s': %s", zmqAddress, err)
 	}
 
-	log.Printf("ZMQ subscriber successfully connected to %s", connectionString)
+	log.Printf("ZMQ subscriber successfully connected to %s", zmqAddress)
 
-	incomingTx := make(chan types.Transaction)
-	incomingBlocks := make(chan types.Block)
+	incomingTx := make(chan types.Transaction, 1<<8)
+	incomingBlocks := make(chan types.Block, 1<<8)
 
 	return &ZMQSubscriber{
 		topics:         topics,

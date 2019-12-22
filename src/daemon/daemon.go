@@ -17,10 +17,12 @@ type BademeisterDaemon struct {
 }
 
 // NewBademeisterDaemon initiates a new BademeisterDaemon.
-func NewBademeisterDaemon(host, port, dbPath string) (*BademeisterDaemon, error) {
-	zmqSub, err := zmqsubscriber.NewZMQSubscriber(host, port)
-	if err != nil {
-		return nil, fmt.Errorf("Could not setup ZMQ subscriber: %s", err)
+func NewBademeisterDaemon(
+	zmqSub *zmqsubscriber.ZMQSubscriber,
+	dbPath string,
+) (*BademeisterDaemon, error) {
+	if zmqSub == nil {
+		return nil, fmt.Errorf("zmqSub must not be nil")
 	}
 
 	store, err := storage.NewStorage(dbPath)

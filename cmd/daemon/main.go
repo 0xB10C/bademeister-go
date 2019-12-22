@@ -6,11 +6,12 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
+
 	"github.com/0xb10c/bademeister-go/src/daemon"
 )
 
-var zmqHost = flag.String("zmq-host", "127.0.0.1", "zmq host")
-var zmqPort = flag.String("zmq-port", "28332", "zmq port")
+var zmqAddress = flag.String("zmq-address", "tcp://127.0.0.1:28332", "zmq adddress")
 var dbPath = flag.String("db", "transactions.db", "path to transactions database")
 
 func main() {
@@ -18,7 +19,12 @@ func main() {
 
 	log.Println("Starting Bademeister Daemon")
 
-	d, err := daemon.NewBademeisterDaemon(*zmqHost, *zmqPort, *dbPath)
+	zmqSub, err := zmqsubscriber.NewZMQSubscriber(*zmqAddress)
+	if err != nil {
+		log.Fatalf("Could not setup ZMQ subscriber: %s", err)
+	}
+
+	d, err := daemon.NewBademeisterDaemon(zmqSub, *dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
