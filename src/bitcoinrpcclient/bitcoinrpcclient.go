@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -64,6 +65,11 @@ func NewBitcoinRPCClient(rpcAddress string) (*BitcoinRPCClient, error) {
 
 	client.addressMineTo = addressMineTo
 	return client, nil
+}
+
+// NewBitcoinRPCClientForIntegrationTest creates a new BitcoinRPCClient based on envvar
+func NewBitcoinRPCClientForIntegrationTest() (*BitcoinRPCClient, error) {
+	return NewBitcoinRPCClient(os.Getenv("TEST_INTEGRATION_RPC_ADDRESS"))
 }
 
 // waitTillRPCServerReady tries every `checkInterval` if the RPC Server the

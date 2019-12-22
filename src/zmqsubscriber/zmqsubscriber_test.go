@@ -70,9 +70,8 @@ func TestZMQSubscriber(t *testing.T) {
 
 	// The environment variables `TEST_INTEGRATION_*` are set in the Makefile.
 	zmqAddress := os.Getenv("TEST_INTEGRATION_ZMQ_ADDRESS")
-	rpcAddress := os.Getenv("TEST_INTEGRATION_RPC_ADDRESS")
 
-	rpcClient, err := bitcoinrpcclient.NewBitcoinRPCClient(rpcAddress)
+	rpcClient, err := bitcoinrpcclient.NewBitcoinRPCClientForIntegrationTest()
 	require.NoError(t, err)
 
 	// Generate 101 blocks to have spendable UTXOs.
