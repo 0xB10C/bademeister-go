@@ -23,9 +23,6 @@ func TestBitcoinRPCClient_GetRawMempoolVerbose(t *testing.T) {
 	_, err = rpcClient.GetRawMempoolVerbose()
 	require.NoError(t, err)
 
-	_, err = rpcClient.GenerateToFixedAddress(200)
-	require.NoError(t, err)
-
 	mempool, err := rpcClient.GetRawMempoolVerbose()
 	require.NoError(t, err)
 	require.Len(t, mempool, 0)

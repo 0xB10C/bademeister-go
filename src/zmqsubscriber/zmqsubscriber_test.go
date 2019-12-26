@@ -89,10 +89,6 @@ func TestZMQSubscriber(t *testing.T) {
 	rpcClient, err := bitcoinrpcclient.NewBitcoinRPCClientForIntegrationTest()
 	require.NoError(t, err)
 
-	// Generate 101 blocks to have spendable UTXOs.
-	_, err = rpcClient.GenerateToFixedAddress(101)
-	require.NoError(t, err)
-
 	addressSendTo, err := rpcClient.GetNewAddress("addressSendTo")
 	require.NoError(t, err)
 

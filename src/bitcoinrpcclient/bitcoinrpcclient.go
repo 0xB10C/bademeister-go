@@ -8,16 +8,19 @@ import (
 	"os"
 	"time"
 
+	"github.com/0xb10c/bademeister-go/src/test"
+
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
 	"github.com/pkg/errors"
 )
 
+const minRegnetBlockHeight = 200
+
 // BitcoinRPCClient represents a Bitcoin Core RPC Client.
 type BitcoinRPCClient struct {
 	*rpcclient.Client
-	addressMineTo btcutil.Address
 }
 
 // NewBitcoinRPCClient returns a new Bitcoin Core RPC Client. This functions
@@ -58,12 +61,17 @@ func NewBitcoinRPCClient(rpcAddress string) (*BitcoinRPCClient, error) {
 		return nil, err
 	}
 
-	addressMineTo, err := rpc.GetNewAddress("addressMineTo")
+	wif := test.GetPrivateKeyWIF(test.MiningSeed)
+	err = client.ImportPrivKey(wif)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error creating mining address")
+		return nil, err
 	}
 
-	client.addressMineTo = addressMineTo
+	_, err = client.generateToHeight(minRegnetBlockHeight)
+	if err != nil {
+		return nil, err
+	}
+
 	return client, nil
 }
 
@@ -91,6 +99,18 @@ func (rpcClient *BitcoinRPCClient) waitTillRPCServerReady(timeout time.Duration)
 		}
 	}
 	return fmt.Errorf("timed out after %s while waiting for the Bitcoin Core RPC Server to be ready", timeout)
+}
+
+func (rpcClient *BitcoinRPCClient) generateToHeight(targetHeight int) ([]*chainhash.Hash, error) {
+	info, err := rpcClient.GetBlockChainInfo()
+	if err != nil {
+		return nil, err
+	}
+	diff := targetHeight - int(info.Blocks)
+	if diff <= 0 {
+		return nil, nil
+	}
+	return rpcClient.GenerateToFixedAddress(diff)
 }
 
 // Generate is deprecated, see error message
@@ -141,7 +161,7 @@ func (rpcClient *BitcoinRPCClient) GenerateToAddress(nBlocks int, address btcuti
 
 // GenerateToFixedAddress mines blocks to `addressMineTo`
 func (rpcClient *BitcoinRPCClient) GenerateToFixedAddress(nBlocks int) ([]*chainhash.Hash, error) {
-	return rpcClient.GenerateToAddress(nBlocks, rpcClient.addressMineTo)
+	return rpcClient.GenerateToAddress(nBlocks, test.MiningAddress)
 }
 
 // SendSimpleTransaction sends 0.1 BTC to the passed address via the
