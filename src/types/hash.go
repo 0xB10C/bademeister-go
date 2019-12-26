@@ -29,7 +29,14 @@ func NewHashFromArray(bytes [32]byte) Hash32 {
 	return NewHashFromBytes(bytes[:])
 }
 
-// Reversed returns a Hash with the byte sequence in reverse order
+// Reversed returns a Hash with the byte sequence in reverse order.
+//
+// Some parts of the btcd api, for instance the SendSimpleTransaction call,
+// return byte arrays that have the internal TxID byte order
+// (but show the reversed rpc byte order in String()).
+// This method helps converting between both representations.
+//
+// More info: https://bitcoin.stackexchange.com/a/32767/3811
 func (h Hash32) Reversed() (res Hash32) {
 	for i := range h {
 		res[31-i] = h[i]
