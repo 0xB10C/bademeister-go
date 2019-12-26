@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0xb10c/bademeister-go/src/test"
+
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -94,7 +96,7 @@ func TestStorage_NextTransactions(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		for j := 0; j < 8; j++ {
 			tx := types.Transaction{
-				TxID:      GenerateHash32(fmt.Sprintf("tx-%d-%d", i, j)),
+				TxID:      test.GenerateHash32(fmt.Sprintf("tx-%d-%d", i, j)),
 				FirstSeen: GetTime(i),
 			}
 			dbid, err := st.InsertTransaction(&tx)
