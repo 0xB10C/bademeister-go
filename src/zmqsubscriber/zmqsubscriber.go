@@ -28,8 +28,21 @@ type ZMQSubscriber struct {
 	cancel         bool
 }
 
-const topicRawBlock = "rawblock"
 const topicRawTxWithFee = "rawtxwithfee"
+const topicRawBlock = "rawblock"
+
+// In order to allow non-blocking writes to channels, initialize them
+// with a certain capacity. During long-running synchronous calls (GetRawMempoolVerbose()),
+// the channel readers can be stalled for a while.
+const channelSizeTx = 256
+const channelSizeBlock = 256
+
+// ErrChannelCapacityExceeded is returned when channel write is blocked
+type ErrChannelCapacityExceeded string
+
+func (e ErrChannelCapacityExceeded) Error() string {
+	return fmt.Sprintf("channel capacity exceeded (%s)", e)
+}
 
 // NewZMQSubscriber creates and returns a new ZMQSubscriber,
 // which subscribes and connect to a Bitcoin Core ZMQ interface.
@@ -53,8 +66,8 @@ func NewZMQSubscriber(zmqAddress string) (*ZMQSubscriber, error) {
 
 	log.Printf("ZMQ subscriber successfully connected to %s", zmqAddress)
 
-	incomingTx := make(chan types.Transaction, 1<<8)
-	incomingBlocks := make(chan types.Block, 1<<8)
+	incomingTx := make(chan types.Transaction, channelSizeTx)
+	incomingBlocks := make(chan types.Block, channelSizeBlock)
 
 	return &ZMQSubscriber{
 		topics:         topics,
@@ -129,13 +142,31 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 		if err != nil {
 			return err
 		}
-		z.IncomingTx <- *tx
+
+		if len(z.IncomingTx) > (channelSizeTx / 2) {
+			fmt.Printf("warning: chan IncomingTx at %d/%d", len(z.IncomingTx), channelSizeTx)
+		}
+
+		select {
+		case z.IncomingTx <- *tx:
+		default:
+			return ErrChannelCapacityExceeded("IncomingTx")
+		}
 	case topicRawBlock:
 		block, err := parseBlock(firstSeen, payload)
 		if err != nil {
 			return err
 		}
-		z.IncomingBlocks <- *block
+
+		if len(z.IncomingBlocks) > (channelSizeBlock / 2) {
+			fmt.Printf("warning: chan IncomingBlocks at %d/%d", len(z.IncomingBlocks), channelSizeBlock)
+		}
+
+		select {
+		case z.IncomingBlocks <- *block:
+		default:
+			return ErrChannelCapacityExceeded("IncomingBlocks")
+		}
 	default:
 		return fmt.Errorf("unknown topic %s", topic)
 	}
