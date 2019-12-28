@@ -35,7 +35,6 @@ func TestBitcoinRPCClient_GetRawMempoolVerbose(t *testing.T) {
 	generatedTxIDs := map[types.Hash32]struct{}{}
 	for i := 0; i < nTransactions; i++ {
 		txid, err := rpcClient.SendSimpleTransaction(addressSendTo)
-		t.Logf("added %s", txid)
 		require.NoError(t, err)
 		generatedTxIDs[types.NewHashFromArray(*txid).Reversed()] = struct{}{}
 	}
@@ -60,4 +59,11 @@ func TestBitcoinRPCClient_GetRawMempoolVerbose(t *testing.T) {
 		assert.Less(t, int(tx.Weight), 1000)
 		assert.Contains(t, generatedTxIDs, tx.TxID)
 	}
+
+	_, err = rpcClient.GenerateToFixedAddress(1)
+	require.NoError(t, err)
+
+	mempool, err = rpcClient.GetRawMempoolVerbose()
+	require.NoError(t, err)
+	require.Len(t, mempool, 0)
 }

@@ -108,7 +108,7 @@ func TestZMQSubscriber(t *testing.T) {
 		require.NotNil(t, block1)
 		assert.Equal(t, hashes[0][:], block1.Hash[:])
 		assert.Greater(t, int(block1.Height), 100)
-		assert.Equal(t, 1, len(block1.TxIDs))
+		assert.Equal(t, len(block1.TxIDs), 1)
 
 		_, err = rpcClient.GenerateToFixedAddress(1)
 		require.NoError(t, err)
@@ -116,6 +116,7 @@ func TestZMQSubscriber(t *testing.T) {
 		require.NotNil(t, block2)
 		assert.Equal(t, block1.Height+1, block2.Height)
 		assert.Equal(t, block1.Hash, block2.Parent)
+		assert.Equal(t, 1, len(block1.TxIDs))
 	}
 
 	_, err = rpcClient.SendSimpleTransaction(addressSendTo)
