@@ -44,6 +44,8 @@ func (b *BademeisterDaemon) processBlock(block *types.Block) error {
 	return err
 }
 
+// dumpStats shows daemon stats.
+// Can contain cpu-intensive calls.
 func (b *BademeisterDaemon) dumpStats() {
 	count, err := b.storage.TxCount()
 	if err != nil {
@@ -63,6 +65,8 @@ func (b *BademeisterDaemon) Run() error {
 		b.Stop()
 	}()
 
+	b.dumpStats()
+
 	for {
 		select {
 		case <-b.quit:
@@ -78,9 +82,8 @@ func (b *BademeisterDaemon) Run() error {
 				log.Printf("Error in processBlock(): %s", err)
 				return err
 			}
+			b.dumpStats()
 		}
-
-		b.dumpStats()
 	}
 }
 

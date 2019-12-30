@@ -192,6 +192,7 @@ func (s *Storage) getVersion() (version int) {
 }
 
 // TxCount returns the transaction count in DB
+// This is a pretty cpu-intensive operation
 func (s *Storage) TxCount() (count int, err error) {
 	row := s.db.QueryRow(`SELECT COUNT(txid) FROM "transaction"`)
 	if err := row.Scan(&count); err != nil {
