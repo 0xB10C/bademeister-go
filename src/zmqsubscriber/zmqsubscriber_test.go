@@ -63,6 +63,7 @@ func setupAndRunZMQSubscriber(t *testing.T, zmqAddress string) (*ZMQSubscriber, 
 // drainZMQChannels empties any pending messages on a ZMQSubscriber
 func drainZMQChannels(z *ZMQSubscriber) {
 	for {
+		time.Sleep(time.Second)
 		// receive any Blocks or Transactions and discard them
 		// if no messages are pending, return
 		select {
