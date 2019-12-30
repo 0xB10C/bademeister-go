@@ -8,13 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/btcsuite/btcd/wire"
+	"github.com/pebbe/zmq4"
 	"github.com/pkg/errors"
 
-	"github.com/btcsuite/btcd/wire"
-
 	"github.com/0xb10c/bademeister-go/src/types"
-
-	"github.com/pebbe/zmq4"
 )
 
 // ZMQSubscriber represents a ZMQ subscriber for the Bitcoin Core ZMQ interface

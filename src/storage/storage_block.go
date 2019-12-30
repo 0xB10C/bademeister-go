@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/pkg/errors"
+
+	"github.com/0xb10c/bademeister-go/src/types"
 )
 
 // BlockIterator helps fetching blocks row-by-row

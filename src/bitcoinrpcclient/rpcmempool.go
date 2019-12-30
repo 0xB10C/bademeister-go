@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/pkg/errors"
+
+	"github.com/0xb10c/bademeister-go/src/types"
 )
 
 // GetRawMempoolVerboseResult implements the current version of `getrawmempool`.

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/pkg/errors"
+
 	"github.com/0xb10c/bademeister-go/src/bitcoinrpcclient"
 	"github.com/0xb10c/bademeister-go/src/storage"
 	"github.com/0xb10c/bademeister-go/src/types"

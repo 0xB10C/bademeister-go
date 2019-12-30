@@ -8,12 +8,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/0xb10c/bademeister-go/src/test"
-
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
 	"github.com/pkg/errors"
+
+	"github.com/0xb10c/bademeister-go/src/test"
 )
 
 const minRegnetBlockHeight = 200

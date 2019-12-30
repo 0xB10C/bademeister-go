@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/0xb10c/bademeister-go/src/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBitcoinRPCClient_GetRawMempoolVerbose(t *testing.T) {

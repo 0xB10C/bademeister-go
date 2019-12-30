@@ -7,9 +7,8 @@ import (
 	"os/signal"
 
 	"github.com/0xb10c/bademeister-go/src/bitcoinrpcclient"
-	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
-
 	"github.com/0xb10c/bademeister-go/src/daemon"
+	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
 )
 
 var zmqAddress = flag.String("zmq-address", "tcp://127.0.0.1:28332", "zmq adddress")

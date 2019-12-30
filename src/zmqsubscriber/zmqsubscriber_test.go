@@ -7,11 +7,10 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/0xb10c/bademeister-go/src/bitcoinrpcclient"
-
 	"github.com/0xb10c/bademeister-go/src/types"
-	"github.com/stretchr/testify/require"
 )
 
 // TestMain is called by `go test` and is the entry point for this tests file.

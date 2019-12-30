@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/0xb10c/bademeister-go/src/test"
-
 	"github.com/0xb10c/bademeister-go/src/types"
 )
 

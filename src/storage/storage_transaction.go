@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/pkg/errors"
+
+	"github.com/0xb10c/bademeister-go/src/types"
 )
 
 // ErrorLookupTransactionDBIDs is returned if transactions confirmed by a block are not found
