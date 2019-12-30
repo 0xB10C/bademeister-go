@@ -55,8 +55,17 @@ func NewBitcoinRPCClient(rpcAddress string) (*BitcoinRPCClient, error) {
 	}
 
 	client := &BitcoinRPCClient{Client: rpc}
-
 	err = client.waitTillRPCServerReady(10 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// NewBitcoinRPCClientForIntegrationTest creates a new BitcoinRPCClient based on envvar
+func NewBitcoinRPCClientForIntegrationTest() (*BitcoinRPCClient, error) {
+	client, err := NewBitcoinRPCClient(os.Getenv("TEST_INTEGRATION_RPC_ADDRESS"))
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +82,6 @@ func NewBitcoinRPCClient(rpcAddress string) (*BitcoinRPCClient, error) {
 	}
 
 	return client, nil
-}
-
-// NewBitcoinRPCClientForIntegrationTest creates a new BitcoinRPCClient based on envvar
-func NewBitcoinRPCClientForIntegrationTest() (*BitcoinRPCClient, error) {
-	return NewBitcoinRPCClient(os.Getenv("TEST_INTEGRATION_RPC_ADDRESS"))
 }
 
 // waitTillRPCServerReady tries every `checkInterval` if the RPC Server the
