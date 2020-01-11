@@ -3,17 +3,16 @@ package zmqsubscriber
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"log"
 	"syscall"
 	"time"
 
 	"github.com/btcsuite/btcd/wire"
+	"github.com/pebbe/zmq4"
+	"github.com/pkg/errors"
 
 	"github.com/0xb10c/bademeister-go/src/types"
-
-	"github.com/pebbe/zmq4"
 )
 
 // ZMQSubscriber represents a ZMQ subscriber for the Bitcoin Core ZMQ interface
@@ -27,12 +26,25 @@ type ZMQSubscriber struct {
 	cancel         bool
 }
 
-const topicRawBlock = "rawblock"
 const topicRawTxWithFee = "rawtxwithfee"
+const topicRawBlock = "rawblock"
+
+// In order to allow non-blocking writes to channels, initialize them
+// with a certain capacity. During long-running synchronous calls (GetRawMempoolVerbose()),
+// the channel readers can be stalled for a while.
+const channelSizeTx = 256
+const channelSizeBlock = 256
+
+// ErrChannelCapacityExceeded is returned when channel write is blocked
+type ErrChannelCapacityExceeded string
+
+func (e ErrChannelCapacityExceeded) Error() string {
+	return fmt.Sprintf("channel capacity exceeded (%s)", e)
+}
 
 // NewZMQSubscriber creates and returns a new ZMQSubscriber,
 // which subscribes and connect to a Bitcoin Core ZMQ interface.
-func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
+func NewZMQSubscriber(zmqAddress string) (*ZMQSubscriber, error) {
 	socket, err := zmq4.NewSocket(zmq4.SUB)
 	if err != nil {
 		return nil, err
@@ -46,15 +58,14 @@ func NewZMQSubscriber(host string, port string) (*ZMQSubscriber, error) {
 		}
 	}
 
-	connectionString := "tcp://" + host + ":" + port
-	if err = socket.Connect(connectionString); err != nil {
-		return nil, fmt.Errorf("could not connect ZMQ subscriber to '%s': %s", connectionString, err)
+	if err = socket.Connect(zmqAddress); err != nil {
+		return nil, errors.Errorf("could not connect ZMQ subscriber to '%s': %s", zmqAddress, err)
 	}
 
-	log.Printf("ZMQ subscriber successfully connected to %s", connectionString)
+	log.Printf("ZMQ subscriber successfully connected to %s", zmqAddress)
 
-	incomingTx := make(chan types.Transaction)
-	incomingBlocks := make(chan types.Block)
+	incomingTx := make(chan types.Transaction, channelSizeTx)
+	incomingBlocks := make(chan types.Block, channelSizeBlock)
 
 	return &ZMQSubscriber{
 		topics:         topics,
@@ -129,13 +140,31 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 		if err != nil {
 			return err
 		}
-		z.IncomingTx <- *tx
+
+		if len(z.IncomingTx) > (channelSizeTx / 2) {
+			fmt.Printf("warning: chan IncomingTx at %d/%d", len(z.IncomingTx), channelSizeTx)
+		}
+
+		select {
+		case z.IncomingTx <- *tx:
+		default:
+			return ErrChannelCapacityExceeded("IncomingTx")
+		}
 	case topicRawBlock:
 		block, err := parseBlock(firstSeen, payload)
 		if err != nil {
 			return err
 		}
-		z.IncomingBlocks <- *block
+
+		if len(z.IncomingBlocks) > (channelSizeBlock / 2) {
+			fmt.Printf("warning: chan IncomingBlocks at %d/%d", len(z.IncomingBlocks), channelSizeBlock)
+		}
+
+		select {
+		case z.IncomingBlocks <- *block:
+		default:
+			return ErrChannelCapacityExceeded("IncomingBlocks")
+		}
 	default:
 		return fmt.Errorf("unknown topic %s", topic)
 	}

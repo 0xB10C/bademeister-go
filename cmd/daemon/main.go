@@ -6,11 +6,14 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/0xb10c/bademeister-go/src/bitcoinrpcclient"
 	"github.com/0xb10c/bademeister-go/src/daemon"
+	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
 )
 
-var zmqHost = flag.String("zmq-host", "127.0.0.1", "zmq host")
-var zmqPort = flag.String("zmq-port", "28332", "zmq port")
+var zmqAddress = flag.String("zmq-address", "tcp://127.0.0.1:28332", "zmq adddress")
+var rpcAddress = flag.String("rpc-address", "http://127.0.0.1:18443", "rpc address")
+var initMempoolRPC = flag.Bool("init-mempool-rpc", true, "fetch initial mempool via getrawmempool")
 var dbPath = flag.String("db", "transactions.db", "path to transactions database")
 
 func main() {
@@ -18,7 +21,20 @@ func main() {
 
 	log.Println("Starting Bademeister Daemon")
 
-	d, err := daemon.NewBademeisterDaemon(*zmqHost, *zmqPort, *dbPath)
+	zmqSub, err := zmqsubscriber.NewZMQSubscriber(*zmqAddress)
+	if err != nil {
+		log.Fatalf("Could not setup ZMQ subscriber: %s", err)
+	}
+
+	var rpcClient *bitcoinrpcclient.BitcoinRPCClient
+	if *rpcAddress != "" {
+		rpcClient, err = bitcoinrpcclient.NewBitcoinRPCClient(*rpcAddress)
+		if err != nil {
+			log.Fatalf("could not initialize rpcClient: %s", err)
+		}
+	}
+
+	d, err := daemon.NewBademeisterDaemon(zmqSub, rpcClient, *dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,7 +47,7 @@ func main() {
 		d.Stop()
 	}()
 
-	errRun := d.Run()
+	errRun := d.Run(daemon.RunParams{InitMempoolRPC: *initMempoolRPC})
 	if errRun != nil {
 		log.Printf("Error during operation, shutting down: %s", errRun)
 	}

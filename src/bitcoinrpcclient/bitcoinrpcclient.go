@@ -4,12 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
+	"os"
 	"time"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
+	"github.com/pkg/errors"
+
+	"github.com/0xb10c/bademeister-go/src/test"
 )
+
+const minRegnetBlockHeight = 200
 
 // BitcoinRPCClient represents a Bitcoin Core RPC Client.
 type BitcoinRPCClient struct {
@@ -19,21 +26,25 @@ type BitcoinRPCClient struct {
 // NewBitcoinRPCClient returns a new Bitcoin Core RPC Client. This functions
 // waits for a maximum of 10 seconds for the corresponding RPC server to be
 // ready. Otherwise it returns a timeout.
-func NewBitcoinRPCClient(rpcUser, rpcPass, rpcHost, rpcPort string) (*BitcoinRPCClient, error) {
-	if len(rpcPass) == 0 {
-		return nil, fmt.Errorf("rpcPass is empty")
+func NewBitcoinRPCClient(rpcAddress string) (*BitcoinRPCClient, error) {
+	if len(rpcAddress) == 0 {
+		return nil, errors.Errorf("rpcAddress is empty")
 	}
-	if len(rpcUser) == 0 || len(rpcHost) == 0 || len(rpcPort) == 0 {
-		return nil, fmt.Errorf(
-			"received empty parameter (rpcUser=%q rpcPass=(hidden) rpcHost=%q rpcPort=%q)",
-			rpcUser, rpcHost, rpcPort,
-		)
+
+	u, err := url.Parse(rpcAddress)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid rpc address")
+	}
+
+	pass, ok := u.User.Password()
+	if !ok {
+		return nil, errors.Errorf("password not set")
 	}
 
 	cfg := &rpcclient.ConnConfig{
-		Host:         rpcHost + ":" + rpcPort,
-		User:         rpcUser,
-		Pass:         rpcPass,
+		Host:         u.Host,
+		User:         u.User.Username(),
+		Pass:         pass,
 		HTTPPostMode: true,
 		DisableTLS:   true,
 	}
@@ -43,9 +54,29 @@ func NewBitcoinRPCClient(rpcUser, rpcPass, rpcHost, rpcPort string) (*BitcoinRPC
 		return nil, err
 	}
 
-	client := &BitcoinRPCClient{rpc}
-
+	client := &BitcoinRPCClient{Client: rpc}
 	err = client.waitTillRPCServerReady(10 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// NewBitcoinRPCClientForIntegrationTest creates a new BitcoinRPCClient based on envvar
+func NewBitcoinRPCClientForIntegrationTest() (*BitcoinRPCClient, error) {
+	client, err := NewBitcoinRPCClient(os.Getenv("TEST_INTEGRATION_RPC_ADDRESS"))
+	if err != nil {
+		return nil, err
+	}
+
+	wif := test.GetPrivateKeyWIF(test.MiningSeed)
+	err = client.ImportPrivKey(wif)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = client.generateToHeight(minRegnetBlockHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -72,6 +103,23 @@ func (rpcClient *BitcoinRPCClient) waitTillRPCServerReady(timeout time.Duration)
 		}
 	}
 	return fmt.Errorf("timed out after %s while waiting for the Bitcoin Core RPC Server to be ready", timeout)
+}
+
+func (rpcClient *BitcoinRPCClient) generateToHeight(targetHeight int) ([]*chainhash.Hash, error) {
+	info, err := rpcClient.GetBlockChainInfo()
+	if err != nil {
+		return nil, err
+	}
+	diff := targetHeight - int(info.Blocks)
+	if diff <= 0 {
+		return nil, nil
+	}
+	return rpcClient.GenerateToFixedAddress(diff)
+}
+
+// Generate is deprecated, see error message
+func (rpcClient *BitcoinRPCClient) Generate(nBlocks int) ([]*chainhash.Hash, error) {
+	return nil, fmt.Errorf("deprecated, use GenerateToAddress(int, Address) or GenerateToFixedAddress(int)")
 }
 
 // GenerateToAddress mines `nBlocks` to the passed address and returns the block
@@ -113,6 +161,11 @@ func (rpcClient *BitcoinRPCClient) GenerateToAddress(nBlocks int, address btcuti
 	}
 
 	return chainhashes, nil
+}
+
+// GenerateToFixedAddress mines blocks to `addressMineTo`
+func (rpcClient *BitcoinRPCClient) GenerateToFixedAddress(nBlocks int) ([]*chainhash.Hash, error) {
+	return rpcClient.GenerateToAddress(nBlocks, test.MiningAddress)
 }
 
 // SendSimpleTransaction sends 0.1 BTC to the passed address via the

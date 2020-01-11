@@ -5,9 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/0xb10c/bademeister-go/src/test"
+	"github.com/0xb10c/bademeister-go/src/types"
 )
 
 func TestStorage_InsertBlock(t *testing.T) {
@@ -108,11 +110,11 @@ func chainedBlocks(startHeight int, parentID string, blockIds []string) (res []t
 	// Allow the empty string as a special value to be able to insert a block without a parent.
 	var prevID types.Hash32
 	if parentID != "" {
-		prevID = GenerateHash32(parentID)
+		prevID = test.GenerateHash32(parentID)
 	}
 	for i, blockID := range blockIds {
 		block := types.Block{
-			Hash:      GenerateHash32(blockID),
+			Hash:      test.GenerateHash32(blockID),
 			Parent:    prevID,
 			Height:    uint32(startHeight + i),
 			FirstSeen: GetTime(i * 100),
@@ -142,11 +144,11 @@ func TestStorage_commonAncestor(t *testing.T) {
 	defer st.Close()
 
 	commonAncestorByID := func(a, b string) (*types.Block, error) {
-		block1, err := st.blockByHash(GenerateHash32(a))
+		block1, err := st.blockByHash(test.GenerateHash32(a))
 		if err != nil {
 			return nil, err
 		}
-		block2, err := st.blockByHash(GenerateHash32(b))
+		block2, err := st.blockByHash(test.GenerateHash32(b))
 		if err != nil {
 			return nil, err
 		}
@@ -168,7 +170,7 @@ func TestStorage_commonAncestor(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, ancestor.Hash, GenerateHash32(expected))
+		assert.Equal(t, ancestor.Hash, test.GenerateHash32(expected))
 
 		revAncestor, err := commonAncestorByID(b, a)
 		if !assert.NoError(t, err) {

@@ -7,12 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/0xb10c/bademeister-go/src/types"
-
 	// import sqlite adapter
 	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/pkg/errors"
+
+	"github.com/0xb10c/bademeister-go/src/types"
 )
 
 const currentVersion = 5
