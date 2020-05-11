@@ -31,9 +31,7 @@ func testQueryTransactions(t *testing.T, st *Storage, txs []types.Transaction) {
 }
 
 func TestStorage_InsertTransaction(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
-	}
+	SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
@@ -85,9 +83,7 @@ func TestStorage_InsertTransaction(t *testing.T) {
 }
 
 func TestStorage_NextTransactions(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
-	}
+	SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)

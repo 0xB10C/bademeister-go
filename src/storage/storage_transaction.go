@@ -219,6 +219,31 @@ func (s *Storage) TransactionsInBlock(blockID int64) (*TxIterator, error) {
 	return &TxIterator{rows}, nil
 }
 
+// TransactionDBIDsInBlock returns the transaction database ids of the transactions confirmed in block
+func (s Storage) TransactionDBIDsInBlock(blockID int64) (res []int64, err error) {
+	rows, err := s.db.Query(`
+		SELECT
+			transaction_id
+		FROM
+			"transaction_block"
+		WHERE
+			block_id = ?
+	`, blockID)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		res = append(res, id)
+	}
+
+	return
+}
+
 // QueryTransactions returns transactions satisfying query
 func (s *Storage) QueryTransactions(q Query) (*TxIterator, error) {
 	var rows *sql.Rows
