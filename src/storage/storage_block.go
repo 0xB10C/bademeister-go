@@ -407,15 +407,11 @@ func (s *Storage) InsertBlock(block *types.Block) (int64, error) {
 	}
 
 	currentBest, errBestBlock := s.BestBlockNow()
-	isFirstBlock := errBestBlock == sql.ErrNoRows
-	if isFirstBlock {
-		// In the beginning we do not have any best blocks
-		currentBest = nil
-	} else if errBestBlock != nil {
+	if errBestBlock != nil {
 		return 0, err
 	}
 
-	blockID, err := s.insertBlock(block, isFirstBlock)
+	blockID, err := s.insertBlock(block, currentBest == nil)
 	if err != nil {
 		return 0, errors.Errorf("error in insertBlock(): %s", err)
 	}
