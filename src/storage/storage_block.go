@@ -98,6 +98,15 @@ func (s *Storage) BestBlockNow() (*types.StoredBlock, error) {
 	})
 }
 
+// HasBlocks returns true if one or more blocks are stored
+func (s *Storage) HasBlocks() (bool, error) {
+	block, err := s.BestBlockNow()
+	if err != nil {
+		return false, err
+	}
+	return block != nil, nil
+}
+
 // BestBlockAtTime returns latest best block before or at provided time
 func (s *Storage) BestBlockAtTime(t time.Time) (*types.StoredBlock, error) {
 	return s.queryBlock(StaticQuery{

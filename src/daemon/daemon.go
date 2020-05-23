@@ -12,6 +12,9 @@ import (
 	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
 )
 
+// ErrMaxBackfill is returned when InitBlocksRPC needs to fetch too many blocks
+var ErrMaxBackfill = errors.New("maxBackfill exceeded")
+
 // BademeisterDaemon reads data off ZMQSubscriber and inserts it to Storage
 type BademeisterDaemon struct {
 	zmqSub    *zmqsubscriber.ZMQSubscriber
@@ -70,6 +73,7 @@ func (b *BademeisterDaemon) dumpStats() {
 // RunParams describes run parameters for BademeisterDaemon
 type RunParams struct {
 	InitMempoolRPC bool
+	InitBlocksRPC  bool
 }
 
 // Run starts the zmqSub loop which feeds zmqSub channels.
@@ -86,6 +90,22 @@ func (b *BademeisterDaemon) Run(params RunParams) error {
 		// it is OK to block here since IncomingTx will be queued
 		if err := b.InitMempoolRPC(); err != nil {
 			log.Printf("error initializing mempool from rpc: %s", err)
+			return err
+		}
+	}
+
+	if params.InitBlocksRPC {
+		hasBlocks, err := b.storage.HasBlocks()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if hasBlocks {
+			if err := b.InitBlocksRPC(); err != nil {
+				log.Printf("error backfilling blocks from rpc: %s", err)
+				return err
+			}
+		} else {
+			log.Printf("no blocks in database, skipping InitBlocksRPC")
 		}
 	}
 	b.dumpStats()
@@ -137,6 +157,76 @@ func (b *BademeisterDaemon) InitMempoolRPC() error {
 	}
 
 	log.Printf("Initial mempool insertion complete.")
+
+	return nil
+}
+
+func (b *BademeisterDaemon) findMissingBlocks(maxBackfill int) (res []types.Block, err error) {
+	if b.rpcClient == nil {
+		return nil, errors.New("no rpcClient")
+	}
+
+	current, err := b.rpcClient.GetBestBlockHash()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	for {
+		if len(res) > maxBackfill {
+			return nil, ErrMaxBackfill
+		}
+
+		h := types.NewHashFromArray(*current)
+		log.Printf("fetching block %s n=%d limit=%d", h, len(res), maxBackfill)
+
+		dbBlock, err := b.storage.BlockByHash(h)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		if dbBlock != nil {
+			break
+		}
+
+		wireBlock, err := b.rpcClient.GetBlock(current)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		block, err := types.NewBlockFromWireBlock(wireBlock.Header.Timestamp, wireBlock)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		res = append([]types.Block{*block}, res...)
+
+		current = &wireBlock.Header.PrevBlock
+	}
+
+	return res, nil
+}
+
+// InitBlocksRPC fetches missing blocks that were dropped while BademeisterDaemon was not running
+func (b *BademeisterDaemon) InitBlocksRPC() error {
+	bestBlock, err := b.storage.BestBlockNow()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if bestBlock == nil {
+		return nil
+	}
+
+	maxBackfill := 100
+	missingBlocks, err := b.findMissingBlocks(maxBackfill)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	log.Printf("inserting %d missing blocks...", len(missingBlocks))
+	for _, block := range missingBlocks {
+		if err := b.processBlock(&block); err != nil {
+			return errors.WithStack(err)
+		}
+	}
 
 	return nil
 }

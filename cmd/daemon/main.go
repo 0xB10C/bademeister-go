@@ -13,6 +13,7 @@ import (
 
 var zmqAddress = flag.String("zmq-address", "tcp://127.0.0.1:28332", "zmq adddress")
 var rpcAddress = flag.String("rpc-address", "http://127.0.0.1:18443", "rpc address")
+var initBlocksRPC = flag.Bool("init-blocks-rpc", true, "backfill missed blocks via rpc")
 var initMempoolRPC = flag.Bool("init-mempool-rpc", true, "fetch initial mempool via getrawmempool")
 var dbPath = flag.String("db", "transactions.db", "path to transactions database")
 
@@ -47,7 +48,10 @@ func main() {
 		d.Stop()
 	}()
 
-	errRun := d.Run(daemon.RunParams{InitMempoolRPC: *initMempoolRPC})
+	errRun := d.Run(daemon.RunParams{
+		InitMempoolRPC: *initMempoolRPC,
+		InitBlocksRPC:  *initBlocksRPC,
+	})
 	if errRun != nil {
 		log.Printf("Error during operation, shutting down: %s", errRun)
 	}
