@@ -42,7 +42,13 @@ func TestBitcoinRPCClient_GetRawMempoolVerbose(t *testing.T) {
 	end := time.Now().Add(time.Second)
 	require.Len(t, generatedTxIDs, nTransactions)
 
-	mempool, err = rpcClient.GetRawMempoolVerbose()
+	for i := 0; i < 5; i++ {
+		mempool, err = rpcClient.GetRawMempoolVerbose()
+		require.NoError(t, err)
+		if len(mempool) < nTransactions {
+			time.Sleep(1 * time.Second)
+		}
+	}
 	require.Len(t, mempool, nTransactions)
 
 	decodedTxs, err := RawMempoolToTransactions(mempool)
