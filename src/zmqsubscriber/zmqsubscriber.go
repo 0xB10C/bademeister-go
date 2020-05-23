@@ -217,5 +217,5 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 func parseBlock(firstSeen time.Time, msg [][]byte) (*types.Block, error) {
 	rawblock, ctr := msg[0], msg[1]
 	_ = ctr
-	return types.NewBlock(firstSeen, rawblock)
+	return types.NewBlockFromBytes(firstSeen, rawblock)
 }

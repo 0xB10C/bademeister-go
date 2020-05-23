@@ -47,8 +47,8 @@ func parseHeight(txin wire.TxIn) int {
 	return int(binary.LittleEndian.Uint32(heightLittleEndian))
 }
 
-// NewBlock creates a new Block from serialized bytes
-func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
+// NewBlockFromBytes creates a new Block from serialized bytes
+func NewBlockFromBytes(firstSeen time.Time, rawblock []byte) (*Block, error) {
 	reader := bytes.NewReader(rawblock)
 
 	var wireBlock wire.MsgBlock
@@ -56,7 +56,11 @@ func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error during BtcDecode: %s", err)
 	}
+	return NewBlockFromWireBlock(firstSeen, &wireBlock)
+}
 
+// NewBlockFromWireBlock creates a new Block from wire.MsgBlock
+func NewBlockFromWireBlock(firstSeen time.Time, wireBlock *wire.MsgBlock) (*Block, error) {
 	height := -1
 	txHashes := []Hash32{}
 
@@ -76,8 +80,8 @@ func NewBlock(firstSeen time.Time, rawblock []byte) (*Block, error) {
 	isBest := true
 
 	return &Block{
-		FirstSeen:   firstSeen,
-		EncodedTime: wireBlock.Header.Timestamp,
+		FirstSeen:   firstSeen.UTC(),
+		EncodedTime: wireBlock.Header.Timestamp.UTC(),
 		Hash:        NewHashFromArray(wireBlock.BlockHash()),
 		Parent:      NewHashFromArray(wireBlock.Header.PrevBlock),
 		TxIDs:       txHashes,
