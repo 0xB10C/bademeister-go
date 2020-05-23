@@ -13,7 +13,7 @@ import (
 )
 
 func TestStorage_InsertBlock(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
@@ -133,7 +133,7 @@ func insertBlocks(st *Storage, blocks []types.Block) error {
 }
 
 func TestStorage_commonAncestor(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestStorage_commonAncestor(t *testing.T) {
 }
 
 func TestStorage_ReorgBase(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)

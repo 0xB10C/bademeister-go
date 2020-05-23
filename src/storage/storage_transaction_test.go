@@ -31,7 +31,7 @@ func testQueryTransactions(t *testing.T, st *Storage, txs []types.Transaction) {
 }
 
 func TestStorage_InsertTransaction(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestStorage_InsertTransaction(t *testing.T) {
 }
 
 func TestStorage_NextTransactions(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
