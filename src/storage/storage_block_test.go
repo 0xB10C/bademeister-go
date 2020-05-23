@@ -103,14 +103,14 @@ func TestStorage_InsertBlock(t *testing.T) {
 	}
 }
 
-func chainedBlocks(startHeight int, parentID string, blockIds []string) (res []types.Block) {
+func chainedBlocks(startHeight int, parentID string, blockIDs []string) (res []types.Block) {
 	// The first block has the zero has as the parent id.
 	// Allow the empty string as a special value to be able to insert a block without a parent.
 	var prevID types.Hash32
 	if parentID != "" {
 		prevID = test.GenerateHash32(parentID)
 	}
-	for i, blockID := range blockIds {
+	for i, blockID := range blockIDs {
 		block := types.Block{
 			Hash:      test.GenerateHash32(blockID),
 			Parent:    prevID,
