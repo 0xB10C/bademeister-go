@@ -2,7 +2,7 @@ package daemon
 
 import (
 	"fmt"
-	"log"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -10,6 +10,8 @@ import (
 	"github.com/0xb10c/bademeister-go/src/storage"
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/0xb10c/bademeister-go/src/zmqsubscriber"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // ErrMaxBackfill is returned when InitBlocksRPC needs to fetch too many blocks
@@ -48,26 +50,57 @@ func NewBademeisterDaemon(
 }
 
 func (b *BademeisterDaemon) processTransaction(tx *types.Transaction) error {
-	log.Printf("Received transaction, adding to storage")
+	log.Debug("Received transaction, adding to storage")
 	_, err := b.storage.InsertTransaction(tx)
 	return err
 }
 
 func (b *BademeisterDaemon) processBlock(block *types.Block) error {
-	log.Printf("Received block %s height=%d, updating database", block.Hash, block.Height)
+	log.Debugf("Received block %s height=%d, updating database", block.Hash, block.Height)
 	_, err := b.storage.InsertBlock(block)
 	return err
 }
 
+type stats struct {
+	date  time.Time
+	count int
+}
+
 // dumpStats shows daemon stats.
 // Can contain cpu-intensive calls.
-func (b *BademeisterDaemon) dumpStats() {
+func (b *BademeisterDaemon) dumpStatsRel(prevStats *stats) *stats {
 	count, err := b.storage.TxCount()
 	if err != nil {
-		log.Printf("Can not dump stats: %s", err)
-		return
+		log.Errorf("Can not dump stats: %s", err)
+		return nil
 	}
-	log.Printf("Current transaction count: %d", count)
+	date := time.Now()
+	msg := fmt.Sprintf("Transaction count: %d", count)
+	if prevStats != nil {
+		msg = fmt.Sprintf(
+			"%s (%.2f/sec)", msg,
+			float64(count-prevStats.count)/date.Sub(prevStats.date).Seconds(),
+		)
+	}
+	log.Infof(msg)
+	return &stats{date, count}
+}
+
+func (b *BademeisterDaemon) dumpStats() *stats {
+	return b.dumpStatsRel(nil)
+}
+
+func (b *BademeisterDaemon) dumpStatsLoop() {
+	var s *stats
+	for {
+		select {
+		case <-b.quit:
+			b.quit <- struct{}{}
+			return
+		case <-time.After(10 * time.Second):
+			s = b.dumpStatsRel(s)
+		}
+	}
 }
 
 // RunParams describes run parameters for BademeisterDaemon
@@ -85,6 +118,8 @@ func (b *BademeisterDaemon) Run(params RunParams) error {
 		zmqSubErr = b.zmqSub.Run()
 		b.Stop()
 	}()
+
+	go b.dumpStatsLoop()
 
 	if params.InitMempoolRPC {
 		// it is OK to block here since IncomingTx will be queued
@@ -114,15 +149,16 @@ func (b *BademeisterDaemon) Run(params RunParams) error {
 		select {
 		case <-b.quit:
 			log.Printf("Received quit signal")
+			b.quit <- struct{}{}
 			return zmqSubErr
 		case tx := <-b.zmqSub.IncomingTx:
 			if err := b.processTransaction(&tx); err != nil {
-				log.Printf("Error in processTransaction(): %s", err)
+				log.Errorf("Error in processTransaction(): %s", err)
 				return err
 			}
 		case block := <-b.zmqSub.IncomingBlocks:
 			if err := b.processBlock(&block); err != nil {
-				log.Printf("Error in processBlock(): %s", err)
+				log.Errorf("Error in processBlock(): %s", err)
 				return err
 			}
 			b.dumpStats()
@@ -242,7 +278,7 @@ func (b *BademeisterDaemon) Close() error {
 
 	errStorage := b.storage.Close()
 	if errStorage != nil {
-		log.Printf("error closing db: %v", errStorage)
+		log.Errorf("error closing db: %v", errStorage)
 		errors = true
 	}
 

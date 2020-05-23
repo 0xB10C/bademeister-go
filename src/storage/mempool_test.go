@@ -1,9 +1,9 @@
 package storage
 
 import (
-	"testing"
-
 	"github.com/0xb10c/bademeister-go/src/test"
+
+	"testing"
 
 	"github.com/0xb10c/bademeister-go/src/types"
 	"github.com/stretchr/testify/assert"
@@ -164,7 +164,7 @@ func TestMempool(t *testing.T) {
 	}
 
 	for targetSeconds := 0; targetSeconds < 600; targetSeconds++ {
-		// log.Printf("targetSeconds=%d", targetSeconds)
+		t.Logf("targetSeconds=%d", targetSeconds)
 		for startSeconds := 0; startSeconds <= targetSeconds; startSeconds += 10 {
 			mem, err := NewMempoolAtTime(st, GetTime(startSeconds))
 			require.NoError(t, err)

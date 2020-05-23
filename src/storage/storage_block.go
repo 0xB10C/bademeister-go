@@ -3,13 +3,13 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 
 	"github.com/0xb10c/bademeister-go/src/types"
+	log "github.com/sirupsen/logrus"
 )
 
 // BlockIterator helps fetching blocks row-by-row
@@ -238,11 +238,11 @@ func (s *Storage) WalkBlocks(start, end *types.StoredBlock, f func(*types.Stored
 // We then traverse from the new best block to the common ancestor and set
 // `last_removed = newBest.FirstSeen` for the transactions contained in these blocks.
 func (s *Storage) updateBestBlock(lastBest, newBest *types.StoredBlock) error {
-	log.Printf("updateBestBlock() newBest=%s height=%d", newBest.Hash, newBest.Height)
+	log.Debugf("updateBestBlock() newBest=%s height=%d", newBest.Hash, newBest.Height)
 
 	// the first block is a special case
 	if lastBest == nil {
-		log.Println("WARNING: lastBest=nil, assuming this is the first block")
+		log.Warn("WARNING: lastBest=nil, assuming this is the first block")
 		return s.updateLastRemoved(newBest, &newBest.FirstSeen)
 	}
 
@@ -265,7 +265,7 @@ func (s *Storage) updateBestBlock(lastBest, newBest *types.StoredBlock) error {
 	// In the default case, currentBest == CommonAncestor and the func is not called.
 	// In case of a reorg, this clears the values up to the common ancestor
 	err = s.WalkBlocks(lastBest, commonAncestor, func(block *types.StoredBlock) error {
-		log.Printf("REORG: clearing last_removed for block %s heigth %d", block.Hash, block.Height)
+		log.Infof("REORG: clearing last_removed for block %s heigth %d", block.Hash, block.Height)
 		return s.updateLastRemoved(block, nil)
 	})
 	if err != nil {
@@ -289,7 +289,7 @@ func (s *Storage) insertBlock(block *types.Block, firstBlock bool) (int64, error
 		parentBlock, err := s.BlockByHash(block.Parent)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				log.Printf("warning: could not find parent block %s for block %s", block.Parent, block.Hash)
+				log.Infof("warning: could not find parent block %s for block %s", block.Parent, block.Hash)
 			} else {
 				return 0, err
 			}
@@ -363,7 +363,7 @@ func (s *Storage) insertTransactionBlock(blockID int64, dbids []int64) error {
 }
 
 func (s *Storage) updateLastRemoved(block *types.StoredBlock, lastRemoved *time.Time) error {
-	log.Printf("updateLastRemoved() block=%s lastRemoved=%s", block.Hash, lastRemoved)
+	log.Debugf("updateLastRemoved() block=%s lastRemoved=%s", block.Hash, lastRemoved)
 
 	var lastRemovedSeconds interface{}
 	if lastRemoved == nil {
