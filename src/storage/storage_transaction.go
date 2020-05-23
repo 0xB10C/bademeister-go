@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/0xb10c/bademeister-go/src/types"
 )
@@ -195,21 +196,19 @@ func (s *Storage) transactionDBIDs(txids []types.Hash32) (*[]int64, error) {
 		dbidByTXID[types.NewHashFromBytes(txidBytes)] = dbid
 	}
 
-	missing := []types.Hash32{}
+	missing := 0
 	res := []int64{}
 	for _, txid := range txids {
 		if dbid, ok := dbidByTXID[txid]; ok {
 			res = append(res, dbid)
 		} else {
-			missing = append(missing, txid)
+			missing++
+			res = append(res, -1)
 		}
 	}
 
-	if len(missing) > 0 {
-		return nil, &ErrorLookupTransactionDBIDs{
-			MissingTxs: missing,
-			Total:      len(txids),
-		}
+	if missing > 0 {
+		log.Printf("%d of %d transactions missing", missing, len(txids))
 	}
 
 	return &res, nil

@@ -12,6 +12,23 @@ import (
 	"github.com/0xb10c/bademeister-go/src/types"
 )
 
+func TestStorage_InsertBlock_UnknownTxs(t *testing.T) {
+	test.SkipIfShort(t)
+
+	st, err := NewTestStorage()
+	require.NoError(t, err)
+	defer st.Close()
+
+	block, err := st.BestBlockNow()
+	require.NoError(t, err)
+	require.Nil(t, block)
+
+	testChain := NewTestChainReorg()
+	// unknown transactions do not cause error
+	_, err = st.InsertBlock(&testChain.blocks[0])
+	require.NoError(t, err)
+}
+
 func TestStorage_InsertBlock(t *testing.T) {
 	test.SkipIfShort(t)
 
@@ -21,15 +38,6 @@ func TestStorage_InsertBlock(t *testing.T) {
 
 	testChain := NewTestChainReorg()
 	blocks := testChain.blocks
-
-	{
-		_, err := st.InsertBlock(&blocks[0])
-		require.Error(t, err)
-		require.True(t, IsErrorMissingTransactions(err), err)
-		block, err := st.BestBlockNow()
-		require.NoError(t, err)
-		require.Nil(t, block)
-	}
 
 	for _, tx := range testChain.transactions {
 		_, err := st.InsertTransaction(&tx)

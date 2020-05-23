@@ -334,16 +334,18 @@ func (s *Storage) insertBlock(block *types.Block, firstBlock bool) (int64, error
 }
 
 func (s *Storage) insertTransactionBlock(blockID int64, dbids []int64) error {
-	if len(dbids) == 0 {
-		return nil
-	}
-
 	valueTuples := []string{}
 	for blockIndex, dbid := range dbids {
-		valueTuples = append(
-			valueTuples,
-			fmt.Sprintf("(%d, %d, %d)", dbid, blockID, blockIndex),
-		)
+		if dbid > 0 {
+			valueTuples = append(
+				valueTuples,
+				fmt.Sprintf("(%d, %d, %d)", dbid, blockID, blockIndex),
+			)
+		}
+	}
+
+	if len(valueTuples) == 0 {
+		return nil
 	}
 
 	insertTransactionBlock := fmt.Sprintf(`
