@@ -12,8 +12,25 @@ import (
 	"github.com/0xb10c/bademeister-go/src/types"
 )
 
+func TestStorage_InsertBlock_UnknownTxs(t *testing.T) {
+	test.SkipIfShort(t)
+
+	st, err := NewTestStorage()
+	require.NoError(t, err)
+	defer st.Close()
+
+	block, err := st.BestBlockNow()
+	require.NoError(t, err)
+	require.Nil(t, block)
+
+	testChain := NewTestChainReorg()
+	// unknown transactions do not cause error
+	_, err = st.InsertBlock(&testChain.blocks[0])
+	require.NoError(t, err)
+}
+
 func TestStorage_InsertBlock(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
@@ -21,15 +38,6 @@ func TestStorage_InsertBlock(t *testing.T) {
 
 	testChain := NewTestChainReorg()
 	blocks := testChain.blocks
-
-	{
-		_, err := st.InsertBlock(&blocks[0])
-		require.Error(t, err)
-		require.True(t, IsErrorMissingTransactions(err), err)
-		block, err := st.BestBlockNow()
-		require.NoError(t, err)
-		require.Nil(t, block)
-	}
 
 	for _, tx := range testChain.transactions {
 		_, err := st.InsertTransaction(&tx)
@@ -103,14 +111,14 @@ func TestStorage_InsertBlock(t *testing.T) {
 	}
 }
 
-func chainedBlocks(startHeight int, parentID string, blockIds []string) (res []types.Block) {
+func chainedBlocks(startHeight int, parentID string, blockIDs []string) (res []types.Block) {
 	// The first block has the zero has as the parent id.
 	// Allow the empty string as a special value to be able to insert a block without a parent.
 	var prevID types.Hash32
 	if parentID != "" {
 		prevID = test.GenerateHash32(parentID)
 	}
-	for i, blockID := range blockIds {
+	for i, blockID := range blockIDs {
 		block := types.Block{
 			Hash:      test.GenerateHash32(blockID),
 			Parent:    prevID,
@@ -133,18 +141,18 @@ func insertBlocks(st *Storage, blocks []types.Block) error {
 }
 
 func TestStorage_commonAncestor(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
 	defer st.Close()
 
 	commonAncestorByID := func(a, b string) (*types.Block, error) {
-		block1, err := st.blockByHash(test.GenerateHash32(a))
+		block1, err := st.BlockByHash(test.GenerateHash32(a))
 		if err != nil {
 			return nil, err
 		}
-		block2, err := st.blockByHash(test.GenerateHash32(b))
+		block2, err := st.BlockByHash(test.GenerateHash32(b))
 		if err != nil {
 			return nil, err
 		}
@@ -192,7 +200,7 @@ func TestStorage_commonAncestor(t *testing.T) {
 }
 
 func TestStorage_ReorgBase(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)

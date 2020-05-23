@@ -3,7 +3,6 @@ package bitcoinrpcclient
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"time"
@@ -14,6 +13,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/0xb10c/bademeister-go/src/test"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const minRegnetBlockHeight = 200

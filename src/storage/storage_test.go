@@ -1,27 +1,13 @@
 package storage
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"os"
-	"testing"
 	"time"
 
 	"github.com/0xb10c/bademeister-go/src/test"
 	"github.com/0xb10c/bademeister-go/src/types"
 )
-
-func SkipIfShort(t *testing.T) {
-	if testing.Short() {
-		// t.Skip() kills the goroutine
-		t.Skip("Skipping " + t.Name() + " since it's not a unit test.")
-	}
-}
-
-// GenerateHash32 returns the hash of a provided preimage.
-func GenerateHash32(in string) types.Hash32 {
-	return sha256.Sum256([]byte(in))
-}
 
 // The nanoseconds are truncated, because the precision is lost
 // when writing the firstSeen unix timestamp to database.

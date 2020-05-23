@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"syscall"
 	"time"
 
 	"github.com/btcsuite/btcd/wire"
-	"github.com/pebbe/zmq4"
 	"github.com/pkg/errors"
 
 	"github.com/0xb10c/bademeister-go/src/types"
+
+	"github.com/pebbe/zmq4"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // ZMQSubscriber represents a ZMQ subscriber for the Bitcoin Core ZMQ interface
@@ -62,7 +64,7 @@ func NewZMQSubscriber(zmqAddress string) (*ZMQSubscriber, error) {
 		return nil, errors.Errorf("could not connect ZMQ subscriber to '%s': %s", zmqAddress, err)
 	}
 
-	log.Printf("ZMQ subscriber successfully connected to %s", zmqAddress)
+	log.Infof("ZMQ subscriber successfully connected to %s", zmqAddress)
 
 	incomingTx := make(chan types.Transaction, channelSizeTx)
 	incomingBlocks := make(chan types.Block, channelSizeBlock)
@@ -107,7 +109,7 @@ func (z *ZMQSubscriber) Run() error {
 		msg, err := z.socket.RecvMessageBytes(0)
 		if err != nil {
 			if err == zmq4.Errno(syscall.EAGAIN) {
-				log.Println("No ZMQ message received in the last second.")
+				log.Debugln("No ZMQ message received in the last second.")
 				continue
 			} else if err == zmq4.Errno(syscall.EINTR) {
 				continue
@@ -116,7 +118,7 @@ func (z *ZMQSubscriber) Run() error {
 		}
 
 		topic, payload := string(msg[0]), msg[1:]
-		log.Printf("ZMQ subscriber received topic %s", topic)
+		log.Debugf("ZMQ subscriber received topic %s", topic)
 
 		// received messages are processed asynchronously so that the queue does not
 		// stall while parsing
@@ -142,7 +144,7 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 		}
 
 		if len(z.IncomingTx) > (channelSizeTx / 2) {
-			fmt.Printf("warning: chan IncomingTx at %d/%d", len(z.IncomingTx), channelSizeTx)
+			log.Warnf("chan IncomingTx at %d/%d", len(z.IncomingTx), channelSizeTx)
 		}
 
 		select {
@@ -157,7 +159,7 @@ func (z *ZMQSubscriber) processMessage(topic string, payload [][]byte) error {
 		}
 
 		if len(z.IncomingBlocks) > (channelSizeBlock / 2) {
-			fmt.Printf("warning: chan IncomingBlocks at %d/%d", len(z.IncomingBlocks), channelSizeBlock)
+			log.Warnf("chan IncomingBlocks at %d/%d", len(z.IncomingBlocks), channelSizeBlock)
 		}
 
 		select {
@@ -217,5 +219,5 @@ func parseTransaction(firstSeen time.Time, payload [][]byte) (*types.Transaction
 func parseBlock(firstSeen time.Time, msg [][]byte) (*types.Block, error) {
 	rawblock, ctr := msg[0], msg[1]
 	_ = ctr
-	return types.NewBlock(firstSeen, rawblock)
+	return types.NewBlockFromBytes(firstSeen, rawblock)
 }

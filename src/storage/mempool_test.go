@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"github.com/0xb10c/bademeister-go/src/test"
+
 	"testing"
 
 	"github.com/0xb10c/bademeister-go/src/types"
@@ -13,7 +15,7 @@ func testMempoolEvent(t *testing.T, mem *Mempool, testChain TestChain, event *Ev
 
 	storedBlocks := []types.StoredBlock{}
 	for _, b := range testChain.blocks {
-		storedBlock, err := mem.storage.blockByHash(b.Hash)
+		storedBlock, err := mem.storage.BlockByHash(b.Hash)
 		require.NoError(t, err)
 		storedBlocks = append(storedBlocks, *storedBlock)
 	}
@@ -99,7 +101,7 @@ func testMempoolEvent(t *testing.T, mem *Mempool, testChain TestChain, event *Ev
 }
 
 func TestMempool_NextEvent(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
@@ -123,7 +125,7 @@ func TestMempool_NextEvent(t *testing.T) {
 }
 
 func TestMempool(t *testing.T) {
-	SkipIfShort(t)
+	test.SkipIfShort(t)
 
 	st, err := NewTestStorage()
 	require.NoError(t, err)
@@ -138,23 +140,23 @@ func TestMempool(t *testing.T) {
 	for _, tx := range txs {
 		r := tx.LastRemoved
 		switch tx.TxID {
-		case GenerateHash32("tx-10"):
+		case test.GenerateHash32("tx-10"):
 			require.Equal(t, GetTime(100), *r)
-		case GenerateHash32("tx-20"):
+		case test.GenerateHash32("tx-20"):
 			require.Equal(t, GetTime(500), *r)
-		case GenerateHash32("tx-30"):
+		case test.GenerateHash32("tx-30"):
 			require.Equal(t, GetTime(500), *r)
-		case GenerateHash32("tx-100"):
+		case test.GenerateHash32("tx-100"):
 			require.Nil(t, r)
-		case GenerateHash32("tx-110"):
+		case test.GenerateHash32("tx-110"):
 			require.Nil(t, r)
-		case GenerateHash32("tx-120"):
+		case test.GenerateHash32("tx-120"):
 			require.Nil(t, r)
-		case GenerateHash32("tx-200"):
+		case test.GenerateHash32("tx-200"):
 			require.Equal(t, GetTime(500), *r)
-		case GenerateHash32("tx-210"):
+		case test.GenerateHash32("tx-210"):
 			require.Equal(t, GetTime(500), *r)
-		case GenerateHash32("tx-220"):
+		case test.GenerateHash32("tx-220"):
 			require.Nil(t, r)
 		default:
 			t.Errorf("unknown TxID %s", tx.TxID)
@@ -162,7 +164,7 @@ func TestMempool(t *testing.T) {
 	}
 
 	for targetSeconds := 0; targetSeconds < 600; targetSeconds++ {
-		// log.Printf("targetSeconds=%d", targetSeconds)
+		t.Logf("targetSeconds=%d", targetSeconds)
 		for startSeconds := 0; startSeconds <= targetSeconds; startSeconds += 10 {
 			mem, err := NewMempoolAtTime(st, GetTime(startSeconds))
 			require.NoError(t, err)

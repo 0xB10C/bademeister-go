@@ -3,15 +3,16 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	"log"
-	"os"
-	"strings"
 
 	// import sqlite adapter
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/pkg/errors"
+
+	"os"
+	"strings"
 
 	"github.com/0xb10c/bademeister-go/src/types"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 const currentVersion = 5
@@ -19,7 +20,7 @@ const currentVersion = 5
 // LogReorg logs reorg events in a standard format.
 // Reorgs happen either while building or reconstructing the mempool
 func LogReorg(lastBest, newBest, commonAncestor *types.StoredBlock) {
-	log.Printf(
+	log.Infof(
 		"REORG: newBest.Hash=%s newBest.Height=%d lastBest.Height=%d CommonAncestor.Height=%d",
 		newBest.Hash, newBest.Height, lastBest.Height, commonAncestor.Height,
 	)
@@ -114,7 +115,7 @@ func NewStorage(path string) (*Storage, error) {
 // initialize creates tables for a new database and fills in the configuration.
 // The caller must make sure that the database isn't initialized already.
 func (s *Storage) initialize(version int) error {
-	log.Printf("Initializing a new database with version %d.\n", version)
+	log.Debugf("Initializing a new database with version %d.\n", version)
 
 	const createConfigTable string = `
 		CREATE TABLE config (
