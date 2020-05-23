@@ -115,11 +115,18 @@ func (i TxIterator) Collect() (res []types.StoredTransaction) {
 	return res
 }
 
-// InsertTransaction inserts a single transaction.
+// InsertTransactions inserts transactions into storage.
 // If same transaction already exists, update `first_seen` to smaller of both values.
-func (s *Storage) InsertTransaction(tx *types.Transaction) (int64, error) {
+func (s *Storage) InsertTransactions(txs []types.Transaction) (int64, error) {
+	// The firstSeen timestamp might not be to be monotonic, since transactions
+	// can be inserted from multiple sources (ZMQ and getrawmempool RPC).
+	// https://www.sqlite.org/lang_UPSERT.html
 	const insertTransaction string = `
-	INSERT INTO "transaction" (txid, first_seen, fee, weight) VALUES(?, ?, ?, ?)
+	INSERT INTO
+	 	"transaction" 
+	 	(txid, first_seen, fee, weight) 
+	VALUES
+		%s
 	ON CONFLICT(txid) DO
 		UPDATE SET
 			first_seen = excluded.first_seen
@@ -127,18 +134,30 @@ func (s *Storage) InsertTransaction(tx *types.Transaction) (int64, error) {
 			first_seen > excluded.first_seen
 	`
 
-	// The firstSeen timestamp might not be to be monotonic, since transactions
-	// can be inserted from multiple sources (ZMQ and getrawmempool RPC).
-	// https://www.sqlite.org/lang_UPSERT.html
-	res, err := s.db.Exec(insertTransaction, tx.TxID[:], tx.FirstSeen.UTC().Unix(), tx.Fee, tx.Weight)
+	values := []string{}
+	for _, tx := range txs {
+		values = append(values, fmt.Sprintf(
+			`(x'%s', %d, %d, %d)`,
+			tx.TxID, tx.FirstSeen.UTC().Unix(), tx.Fee, tx.Weight,
+		))
+	}
+
+	smt := fmt.Sprintf(insertTransaction, strings.Join(values, ","))
+	res, err := s.db.Exec(smt)
 	if err != nil {
-		return 0, errors.Errorf("could not insert a transaction into table `transaction`: %s", err)
+		return 0, errors.Errorf("could not insert transactions into table `transaction`: %s", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
 		return 0, err
 	}
 	return id, nil
+}
+
+// InsertTransaction inserts a single transaction.
+// See InsertTransactions for more info.
+func (s *Storage) InsertTransaction(tx *types.Transaction) (int64, error) {
+	return s.InsertTransactions([]types.Transaction{*tx})
 }
 
 func (s *Storage) transactionDBIDs(txids []types.Hash32) (*[]int64, error) {

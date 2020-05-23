@@ -50,8 +50,12 @@ func NewBademeisterDaemon(
 }
 
 func (b *BademeisterDaemon) processTransaction(tx *types.Transaction) error {
-	log.Debug("Received transaction, adding to storage")
-	_, err := b.storage.InsertTransaction(tx)
+	return b.processTransactions([]types.Transaction{*tx})
+}
+
+func (b *BademeisterDaemon) processTransactions(txs []types.Transaction) error {
+	log.Debugf("Inserting %d transactions", len(txs))
+	_, err := b.storage.InsertTransactions(txs)
 	return err
 }
 
@@ -185,11 +189,8 @@ func (b *BademeisterDaemon) InitMempoolRPC() error {
 		return err
 	}
 
-	for _, tx := range mempoolTxs {
-		err = b.processTransaction(&tx)
-		if err != nil {
-			return err
-		}
+	if err := b.processTransactions(mempoolTxs); err != nil {
+		return errors.WithStack(err)
 	}
 
 	log.Printf("Initial mempool insertion complete.")
