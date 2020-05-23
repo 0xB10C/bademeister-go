@@ -79,7 +79,9 @@ func (s *Storage) queryBlock(q Query) (*types.StoredBlock, error) {
 	return blockIter.Next(), nil
 }
 
-func (s *Storage) blockByHash(h types.Hash32) (*types.StoredBlock, error) {
+// BlockByHash returns the block with provided hash.
+// Returns nil if no such block exists.
+func (s *Storage) BlockByHash(h types.Hash32) (*types.StoredBlock, error) {
 	return s.queryBlock(StaticQuery{
 		where: fmt.Sprintf(`hash = x'%s'`, h),
 		order: "",
@@ -137,7 +139,7 @@ func (s *Storage) CommonAncestor(a, b *types.StoredBlock) (*types.StoredBlock, e
 		}
 	}
 
-	aParent, err := s.blockByHash(a.Parent)
+	aParent, err := s.BlockByHash(a.Parent)
 	if err != nil {
 		return nil, errors.Errorf("error retrieving parent: %s", err)
 	}
@@ -156,7 +158,7 @@ func (s *Storage) ReorgBase(block *types.Block) (*types.StoredBlock, error) {
 		return nil, errors.Errorf("must provide block that was chainhead at some point")
 	}
 
-	storedBlock, err := s.blockByHash(block.Hash)
+	storedBlock, err := s.BlockByHash(block.Hash)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +208,7 @@ func (s *Storage) WalkBlocks(start, end *types.StoredBlock, f func(*types.Stored
 			return err
 		}
 
-		parentBlock, err := s.blockByHash(current.Parent)
+		parentBlock, err := s.BlockByHash(current.Parent)
 		if err != nil {
 			return err
 		}
@@ -275,7 +277,7 @@ func (s *Storage) insertBlock(block *types.Block, firstBlock bool) (int64, error
 
 	// sanity check height and parent
 	if block.Parent != zeroHash && !firstBlock {
-		parentBlock, err := s.blockByHash(block.Parent)
+		parentBlock, err := s.BlockByHash(block.Parent)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				log.Printf("warning: could not find parent block %s for block %s", block.Parent, block.Hash)

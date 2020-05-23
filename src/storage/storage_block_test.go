@@ -140,11 +140,11 @@ func TestStorage_commonAncestor(t *testing.T) {
 	defer st.Close()
 
 	commonAncestorByID := func(a, b string) (*types.Block, error) {
-		block1, err := st.blockByHash(test.GenerateHash32(a))
+		block1, err := st.BlockByHash(test.GenerateHash32(a))
 		if err != nil {
 			return nil, err
 		}
-		block2, err := st.blockByHash(test.GenerateHash32(b))
+		block2, err := st.BlockByHash(test.GenerateHash32(b))
 		if err != nil {
 			return nil, err
 		}

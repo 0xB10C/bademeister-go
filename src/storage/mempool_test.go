@@ -13,7 +13,7 @@ func testMempoolEvent(t *testing.T, mem *Mempool, testChain TestChain, event *Ev
 
 	storedBlocks := []types.StoredBlock{}
 	for _, b := range testChain.blocks {
-		storedBlock, err := mem.storage.blockByHash(b.Hash)
+		storedBlock, err := mem.storage.BlockByHash(b.Hash)
 		require.NoError(t, err)
 		storedBlocks = append(storedBlocks, *storedBlock)
 	}
